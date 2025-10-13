@@ -65,3 +65,13 @@ jobs:
           echo "Core split at $CORE_SPLIT_COMMIT"
           git tag -a "upm-core-${{ steps.versions.outputs.core }}" -m "UPM Core v${{ steps.versions.outputs.core }}" "$CORE_SPLIT_COMMIT"
           git push origin "refs/tags/upm-core-${{ steps.versions.outputs.core }}"
+
+      - name: Split Adapter and create tag
+        if: ${{ steps.versions.outputs.adapter != '' }}
+        shell: bash
+        run: |
+          set -e
+          ADAPT_SPLIT_COMMIT=$(git subtree split --prefix=Packages/com.zenecs.adapter.unity)
+          echo "Adapter split at $ADAPT_SPLIT_COMMIT"
+          git tag -a "upm-adapter-${{ steps.versions.outputs.adapter }}" -m "UPM Adapter v${{ steps.versions.outputs.adapter }}" "$ADAPT_SPLIT_COMMIT"
+          git push origin "refs/tags/upm-adapter-${{ steps.versions.outputs.adapter }}"
