@@ -1,0 +1,11 @@
+﻿{
+  "name": "com.zenecs.adapter.unity",
+  "displayName": "ZenECS Adapter for Unity",
+  "version": "1.0.0",
+  "description": "Unity integration layer for ZenECS Core (binders, views, runtime hooks).",
+  "unity": "2021.3",
+  "dependencies": {
+    "com.zenecs.core": "1.0.0"
+  },
+  "author": { "name": "Pippapips Limited" }
+}

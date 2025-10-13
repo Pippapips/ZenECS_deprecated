@@ -1,0 +1,42 @@
+{
+  "name": "ZenECS.Adapter.Unity",
+  "rootNamespace": "ZenECS.Adapter.Unity",
+  "references": [
+    "ZenECS.Core",
+    "Unity.Mathematics",
+    "Unity.Collections",
+    "Unity.Addressables",
+    "UniRx",
+    "Zenject"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "defineConstraints": [],
+  "versionDefines": [
+    {
+      "name": "com.svermeulen.extenject",
+      "expression": "0.0.1",
+      "define": "ZENECS_ZENJECT"
+    },
+    {
+      "name": "com.neuecc.unirx",
+      "expression": "7.1.0",
+      "define": "ZENECS_UNIRX"
+    },
+    {
+      "name": "com.unity.mathematics",
+      "expression": "1.3.2",
+      "define": "ZENECS_MATH"
+    },
+    {
+      "name": "com.unity.collections",
+      "expression": "2.5.7",
+      "define": "ZENECS_COLLECTIONS"
+    }
+  ],
+  "noEngineReferences": false
+}
