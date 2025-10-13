@@ -3,8 +3,8 @@
 # Get latest from https://github.com/github/gitignore/blob/main/Unity.gitignore
 #
 .utmp/
-/[Ll]ibrary/
 /[Tt]emp/
+/[Ll]ibrary/
 /[Oo]bj/
 /[Bb]uild/
 /[Bb]uilds/
@@ -30,6 +30,9 @@
 /[Aa]ssets/Plugins/Editor/JetBrains*
 # Jetbrains Rider personal-layer settings
 *.DotSettings.user
+
+# Rider
+.idea/
 
 # Visual Studio cache directory
 .vs/
@@ -97,3 +100,7 @@ InitTestScene*.unity*
 
 # Auto-generated scenes by play mode tests
 /[Aa]ssets/[Ii]nit[Tt]est[Ss]cene*.unity*
+
+# .NET
+obj/
+bin/
