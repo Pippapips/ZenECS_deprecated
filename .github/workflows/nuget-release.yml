@@ -1,0 +1,21 @@
+name: NuGet Release
+
+on:
+  push:
+    tags:
+      - 'core-v*'
+
+jobs:
+  pack-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Restore
+        run: dotnet restore src/ZenECS.Core/ZenECS.Core.csproj
+      - name: Pack
+        run: dotnet pack -c Release -o artifacts src/ZenECS.Core/ZenECS.Core.csproj
+      - name: Push to NuGet
+        run: dotnet nuget push artifacts/*.nupkg -k ${{ secrets.NUGET_API_KEY }} -s https://api.nuget.org/v3/index.json --skip-duplicate

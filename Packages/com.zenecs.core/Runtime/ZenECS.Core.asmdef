@@ -1,0 +1,13 @@
+{
+  "name": "ZenECS.Core",
+  "rootNamespace": "ZenECS",
+  "references": [],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "defineConstraints": [],
+  "noEngineReferences": true
+}
