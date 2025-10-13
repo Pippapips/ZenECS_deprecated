@@ -1,46 +1,67 @@
-name: NuGet Release
+name: UPM Split & Tag
 
 on:
-  push:
-    tags:
-      - 'core-v*'
+  workflow_dispatch:
+    inputs:
+      core_version:
+        description: 'Core version (e.g., 1.0.0). Leave blank to auto-read from Core package.json'
+        required: false
+      adapter_version:
+        description: 'Adapter version (e.g., 1.0.0). Leave blank to auto-read from Adapter package.json'
+        required: false
+
+permissions:
+  contents: write   # ← 태그/브랜치 푸시 허용
 
 jobs:
-  pack-and-push:
+  split:
     runs-on: ubuntu-latest
-
-    # ✅ secrets를 env로 먼저 주입
-    env:
-      NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
-
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-dotnet@v4
+      - name: Checkout full history
+        uses: actions/checkout@v4
         with:
-          dotnet-version: |
-            6.0.x
-            8.0.x
+          fetch-depth: 0
+          persist-credentials: true
 
-      - name: Restore
-        run: dotnet restore src/ZenECS.Core/ZenECS.Core.csproj
-
-      - name: Build
-        run: dotnet build -c Release --no-restore src/ZenECS.Core/ZenECS.Core.csproj
-
-      - name: Pack
-        run: dotnet pack -c Release --no-build -o artifacts src/ZenECS.Core/ZenECS.Core.csproj
-
-      - name: Verify outputs
+      - name: Configure git identity
         run: |
-          ls -la artifacts
-          test -n "$(ls -1 artifacts/*.nupkg 2>/dev/null)" || (echo "No .nupkg found in artifacts" && exit 2)
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-      # ✅ if에서는 env 컨텍스트를 사용해 비교
-      - name: Push to NuGet (skip if no key)
-        if: ${{ env.NUGET_API_KEY != '' }}
-        run: dotnet nuget push artifacts/*.nupkg --api-key "$NUGET_API_KEY" --source "https://api.nuget.org/v3/index.json" --skip-duplicate
+      - name: Resolve versions (allow empty inputs → auto-read)
+        id: versions
+        shell: bash
+        run: |
+          set -e
+          CORE_JSON="Packages/com.zenecs.core/package.json"
+          ADAPT_JSON="Packages/com.zenecs.adapter.unity/package.json"
 
-      - name: Skip NuGet push (no API key)
-        if: ${{ env.NUGET_API_KEY == '' }}
-        run: echo "NUGET_API_KEY not set. Skipping NuGet push."
+          core_v="${{ github.event.inputs.core_version }}"
+          adapt_v="${{ github.event.inputs.adapter_version }}"
+
+          if [ -z "$core_v" ]; then
+            core_v=$(jq -r '.version' "$CORE_JSON")
+          fi
+          if [ -z "$adapt_v" ]; then
+            adapt_v=$(jq -r '.version' "$ADAPT_JSON")
+          fi
+
+          echo "core=$core_v"   >> $GITHUB_OUTPUT
+          echo "adapter=$adapt_v" >> $GITHUB_OUTPUT
+
+          echo "Resolved versions => core: $core_v, adapter: $adapt_v"
+
+      - name: Validate package paths
+        run: |
+          test -d Packages/com.zenecs.core || (echo "Missing: Packages/com.zenecs.core" && exit 1)
+          test -d Packages/com.zenecs.adapter.unity || (echo "Missing: Packages/com.zenecs.adapter.unity" && exit 1)
+
+      - name: Split Core and create tag
+        if: ${{ steps.versions.outputs.core != '' }}
+        shell: bash
+        run: |
+          set -e
+          CORE_SPLIT_COMMIT=$(git subtree split --prefix=Packages/com.zenecs.core)
+          echo "Core split at $CORE_SPLIT_COMMIT"
+          git tag -a "upm-core-${{ steps.versions.outputs.core }}" -m "UPM Core v${{ steps.versions.outputs.core }}" "$CORE_SPLIT_COMMIT"
+          git push origin "refs/tags/upm-core-${{ steps.versions.outputs.core }}"
