@@ -37,5 +37,11 @@ jobs:
           ls -la src/ZenECS.Core/bin/Release/net6.0 || true
           ls -la artifacts
 
-      - name: Push to NuGet
-        run: dotnet nuget push artifacts/*.nupkg -k ${{ secrets.NUGET_API_KEY }} -s https://api.nuget.org/v3/index.json --skip-duplicate
+      - name: Push to NuGet (skip if no key)
+        if: ${{ secrets.NUGET_API_KEY != '' }}
+        run: dotnet nuget push artifacts/*.nupkg --api-key "${{ secrets.NUGET_API_KEY }}" --source "https://api.nuget.org/v3/index.json" --skip-duplicate
+      
+      # 키가 없으면 사용자에게 안내만
+      - name: Skip NuGet push (no API key)
+        if: ${{ secrets.NUGET_API_KEY == '' }}
+        run: echo "NUGET_API_KEY not set. Skipping NuGet push."
