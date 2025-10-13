@@ -1,0 +1,20 @@
+{
+  "name": "com.pippapips.zenecs.core",
+  "displayName": "ZenECS Core",
+  "version": "1.0.0",
+  "description": "Pure C# data-driven ECS core (no Unity dependency).",
+  "unity": "2021.3",
+  "documentationUrl": "https://github.com/Pippapips/ZenECS",
+  "licensesUrl": "https://github.com/Pippapips/ZenECS/blob/main/LICENSE",
+  "changelogUrl": "https://github.com/Pippapips/ZenECS/releases",
+  "keywords": [
+    "ecs",
+    "data-oriented",
+    "core"
+  ],
+  "author": {
+    "name": "Pippapips Limited",
+    "email": "ck@pippapips.com",
+    "url": "https://pippapips.com"
+  }
+}
