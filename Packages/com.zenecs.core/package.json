@@ -1,7 +1,7 @@
 {
   "name": "com.pippapips.zenecs.core",
   "displayName": "ZenECS Core",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Pure C# data-driven ECS core (no Unity dependency).",
   "unity": "2021.3",
   "documentationUrl": "https://github.com/Pippapips/ZenECS",
