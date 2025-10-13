@@ -10,12 +10,32 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      # net6 타깃을 확실히 커버하도록 SDK 명시 (여러 버전 가능)
       - uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '8.0.x'
+          dotnet-version: |
+            6.0.x
+            8.0.x
+
+      - name: Show .NET info
+        run: dotnet --info
+
       - name: Restore
         run: dotnet restore src/ZenECS.Core/ZenECS.Core.csproj
+
+      # ✅ 먼저 빌드해서 DLL을 만들어 둠
+      - name: Build
+        run: dotnet build -c Release --no-restore src/ZenECS.Core/ZenECS.Core.csproj
+
+      # ✅ 그 다음 Pack (이미 빌드됨)
       - name: Pack
-        run: dotnet pack -c Release -o artifacts src/ZenECS.Core/ZenECS.Core.csproj
+        run: dotnet pack -c Release --no-build -o artifacts src/ZenECS.Core/ZenECS.Core.csproj
+
+      - name: Verify outputs
+        run: |
+          ls -la src/ZenECS.Core/bin/Release/net6.0 || true
+          ls -la artifacts
+
       - name: Push to NuGet
         run: dotnet nuget push artifacts/*.nupkg -k ${{ secrets.NUGET_API_KEY }} -s https://api.nuget.org/v3/index.json --skip-duplicate
