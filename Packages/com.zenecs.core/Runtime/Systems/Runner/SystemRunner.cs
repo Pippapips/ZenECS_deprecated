@@ -1,194 +1,248 @@
-﻿using System;
+﻿/*
+    ZenECS.Core
+    수명주기
+    MIT | © 2025 Pippapips Limited
+*/
+#nullable enable
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
-#if ZENECS_TRACE
-using ZenECS.Core.Diagnostics;
-#endif
+using ZenECS.Core.Infrastructure;
+using ZenECS.Core.Messaging;
 
 namespace ZenECS.Core.Systems
 {
-    /// <summary>
-    /// 시스템 파이프라인 구성/실행기.
-    /// - 그룹 정렬(Initialization→Simulation→Presentation)
-    /// - 선언적 순서(OrderBefore/OrderAfter)
-    /// - 라이프사이클 호출(Init/Run/Fixed/Late/Cleanup/Dispose)
-    /// </summary>
+    public enum StructuralFlushPolicy
+    {
+        EndOfSimulation,  // 기본값: Simulation 그룹 끝에서 즉시 플러시
+        BeginOfNextFrame, // 다음 프레임 시작에 플러시
+        Manual            // 엔진 자동 호출 없음(테스트/특수 파이프라인용)
+    }
+
+    public sealed class SystemRunnerOptions
+    {
+        /// <summary>Structural changes flush timing.</summary>
+        public StructuralFlushPolicy FlushPolicy { get; set; } = StructuralFlushPolicy.EndOfSimulation;
+
+        /// <summary>Presentation 구간에서 쓰기 금지 가드 사용 여부.</summary>
+        public bool GuardWritesInPresentation { get; set; } = true;
+
+        /// <summary>기본 생성자 (기존 동작과 동일).</summary>
+        public SystemRunnerOptions() { }
+
+        /// <summary>필요 옵션을 바로 지정하는 생성자.</summary>
+        public SystemRunnerOptions(
+            StructuralFlushPolicy flushPolicy = StructuralFlushPolicy.EndOfSimulation,
+            bool guardWritesInPresentation = true)
+        {
+            FlushPolicy = flushPolicy;
+            GuardWritesInPresentation = guardWritesInPresentation;
+        }
+
+        /// <summary>편의용 기본 인스턴스.</summary>
+        public static readonly SystemRunnerOptions Default = new();
+    }
+
     public sealed class SystemRunner
     {
-        private readonly World world;
+        public SystemRunnerOptions Options => _opt;
 
-        private readonly List<IInitSystem> init = new List<IInitSystem>(32);
-        private readonly List<IRunSystem> update = new List<IRunSystem>(128);
-        private readonly List<IFixedRunSystem> fixedUpdate = new List<IFixedRunSystem>(32);
-        private readonly List<ILateRunSystem> late = new List<ILateRunSystem>(64);
-        private readonly List<ICleanupSystem> cleanup = new List<ICleanupSystem>(32);
-        private readonly List<IDisposeSystem> dispose = new List<IDisposeSystem>(32);
+        private readonly World _w;
+        private IMessageBus _bus;
+        private readonly SystemPlanner.Plan? _plan;
+        private readonly SystemRunnerOptions _opt;
+        private bool _pendingFlush; // 다음 프레임 시작 시 플러시할지 표시
+        private bool _started;
+        private bool _stopped;
 
-#if ZENECS_TRACE
-        [InjectOptional] private EcsTraceCenter _traceCenter;
-#endif
-        
-        public SystemRunner(World world, IEnumerable<ISystem>? systems = null)
+        public SystemRunner(World w,
+            IMessageBus? bus = null,
+            IEnumerable<ISystem>? systems = null,
+            SystemRunnerOptions? opt = null,
+            Action<string>? warn = null)
         {
-            this.world = world ?? throw new ArgumentNullException(nameof(world));
-            BuildPipelines(systems ?? []);
+            _bus = bus ?? new MessageBus();
+            _w = w ?? throw new ArgumentNullException(nameof(w));
+            _plan = SystemPlanner.Build(systems, warn);
+            _opt = opt ?? new SystemRunnerOptions();
         }
 
-        private void BuildPipelines(IEnumerable<ISystem> systems)
+        public void InitializeSystems()
         {
-            var list = systems.ToList();
-            ZenECS.Core.Infrastructure.EcsRuntimeDirectory.Attach(world, list);
-            if (list.Count == 0) return;
-
-            list.Sort(CompareByAttributes);
-
-            foreach (var s in list)
+            if (_started)
             {
-                if (s is IInitSystem i) init.Add(i);
-                if (s is IRunSystem r) update.Add(r);
-                if (s is IFixedRunSystem f) fixedUpdate.Add(f);
-                if (s is ILateRunSystem l) late.Add(l);
-                if (s is ICleanupSystem c) cleanup.Add(c);
-                if (s is IDisposeSystem d) dispose.Add(d);
+                return;
+            }
+            _started = true;
+
+            if (_plan != null)
+            {
+                foreach (ISystemLifecycle s in _plan.LifecycleInitializeOrder)
+                {
+                    s.Initialize(_w);
+                }
+            }
+            _w.RunScheduledJobs();
+        }
+
+        // 2) 종료: 역순(Pres → Sim → Init)
+        public void ShutdownSystems()
+        {
+            if (!_started || _stopped)
+            {
+                return;
+            }
+            _stopped = true;
+
+            if (_plan != null)
+            {
+                foreach (ISystemLifecycle s in _plan.LifecycleShutdownOrder)
+                {
+                    s.Shutdown(_w);
+                }
             }
         }
 
-        // 그룹 우선순위 → 선언적 before/after
-        private static int CompareByAttributes(ISystem a, ISystem b)
+        /// <summary>Unity FixedUpdate 대응: 고정 스텝 블록. 구조 변경은 기록만, 적용은 정책에 따름.</summary>
+        public void FixedStep(float fixedDelta)
         {
-            var ta = a.GetType();
-            var tb = b.GetType();
+            // 고정 스텝 기준 준비가 필요하면 Init 포함 가능 (dt 사용 금지)
+            RunFixedGroup(SystemGroup.FrameSetup);
 
-            int GroupRank(Type t)
+            // 고정 스텝 dt 주입
+            _w.DeltaTime = fixedDelta;
+
+            RunFixedGroup(SystemGroup.Simulation);
+            // NOTE: 여기서는 RunScheduledJobs() 호출하지 않음 (배리어는 BeginFrame에서)
+        }
+
+        /// <summary>Unity Update 대응: 프레임 시작(가변 스텝 + 배리어).</summary>
+        public void BeginFrame(float deltaTime)
+        {
+            // "다음 프레임 시작" 정책이면 이전 프레임 예약분을 여기서 적용
+            if (_opt.FlushPolicy == StructuralFlushPolicy.BeginOfNextFrame && _pendingFlush)
             {
-                if (t == typeof(InitializationGroup)) return 0;
-                if (t == typeof(SimulationGroup)) return 1;
-                if (t == typeof(PresentationGroup)) return 2;
-                return 1; // 기본은 Simulation과 동일 취급
+                _w.RunScheduledJobs();
+                _pendingFlush = false;
             }
 
-            var ga = ta.GetCustomAttribute<UpdateGroupAttribute>()?.GroupType;
-            var gb = tb.GetCustomAttribute<UpdateGroupAttribute>()?.GroupType;
-            int gcmp = GroupRank(ga) - GroupRank(gb);
-            if (gcmp != 0) return gcmp;
+            _bus.PumpAll();
 
-            bool ABeforeB() =>
-                ta.GetCustomAttributes<OrderBeforeAttribute>().Any(x => x.Target == tb) ||
-                tb.GetCustomAttributes<OrderAfterAttribute>().Any(x => x.Target == ta);
+            // Init: 입력 스냅샷/큐 스왑 등 (dt 금지)
+            RunGroup(SystemGroup.FrameSetup);
 
-            bool AAfterB() =>
-                ta.GetCustomAttributes<OrderAfterAttribute>().Any(x => x.Target == tb) ||
-                tb.GetCustomAttributes<OrderBeforeAttribute>().Any(x => x.Target == ta);
+            _w.RunScheduledJobs();
 
-            if (ABeforeB() && !AAfterB()) return -1;
-            if (AAfterB() && !ABeforeB()) return 1;
-            return 0;
-        }
+            // 가변 스텝 dt 주입
+            _w.DeltaTime = deltaTime;
 
-        // ===== 라이프사이클 =====
-        public void Init()
-        {
-            foreach (var s in init) s.Init(world);
-        }
+            RunGroup(SystemGroup.Simulation);
 
-        /// <summary>프레임 업데이트(Advance→Run→Cleanup)</summary>
-        public void Update(float deltaTime)
-        {
-            world.Advance(deltaTime); // Tick/DeltaTime 갱신 + 스케줄드 잡 처리
-            for (int i = 0; i < update.Count; i++)
+            // 배리어 정책
+            if (_opt.FlushPolicy == StructuralFlushPolicy.EndOfSimulation)
             {
-#if ZENECS_TRACE
-                if (_traceCenter != null)
-                {
-                    var name = update[i].GetType().Name;
-                    using var scope = _traceCenter.SystemScope(name);
-                    try
-                    {
-                        update[i].Run(world);
-                    }
-                    catch
-                    {
-                        ((EcsTraceCenter.Scope)scope).MarkException();
-                        throw;
-                    }
-                }
-                else
-                {
-                    update[i].Run(world);
-                }
-#else
-                update[i].Run(world);
-#endif
+                _w.RunScheduledJobs(); // 표준 위치(프레젠테이션 직전)
             }
-
-            for (int i = 0; i < cleanup.Count; i++) cleanup[i].Cleanup(world);
-        }
-
-        /// <summary>고정 틱(물리 등가)</summary>
-        public void FixedUpdate(float fixedDeltaTime)
-        {
-            for (int i = 0; i < fixedUpdate.Count; i++)
+            else if (_opt.FlushPolicy == StructuralFlushPolicy.BeginOfNextFrame)
             {
-#if ZENECS_TRACE
-                if (_traceCenter != null)
-                {
-                    var name = fixedUpdate[i].GetType().Name;
-                    using var scope = _traceCenter.SystemScope(name);
-                    try
-                    {
-                        fixedUpdate[i].FixedRun(world, fixedDeltaTime);
-                    }
-                    catch
-                    {
-                        ((EcsTraceCenter.Scope)scope).MarkException();
-                        throw;
-                    }
-                }
-                else
-                {
-                    fixedUpdate[i].FixedRun(world, fixedDeltaTime);
-                }
-#else
-                fixedUpdate[i].FixedRun(world, fixedDeltaTime);
-#endif
+                _pendingFlush = true; // 다음 프레임 시작에 적용
             }
         }
 
-        /// <summary>표현 단계(보통 Data→View 동기화)</summary>
-        public void LateUpdate()
+        /// <summary>Unity LateUpdate 대응: 표시(Read-only) 단계.</summary>
+        public void LateFrame(float interpolationAlpha = 1f)
         {
-            for (int i = 0; i < late.Count; i++)
+            using IDisposable? guard = _opt.GuardWritesInPresentation ? DenyWrites() : null;
+            RunLateGroup(SystemGroup.Presentation);
+
+            _w.FrameCount++;
+        }
+
+        private static DisposableAction DenyWrites()
+        {
+            Func<World, Entity, Type, bool>? prev = EcsActions.WritePermissionHook;
+            EcsActions.SetWritePermission((w, e, t) => false);
+            return new DisposableAction(() => EcsActions.SetWritePermission(prev));
+        }
+
+        private sealed class DisposableAction : IDisposable
+        {
+            private readonly Action _onDispose;
+            public DisposableAction(Action onDispose) => _onDispose = onDispose;
+            public void Dispose() => _onDispose();
+        }
+
+        private void RunFixedGroup(SystemGroup g)
+        {
+            if (_plan == null)
             {
-#if ZENECS_TRACE
-                if (_traceCenter != null)
+                return;
+            }
+
+            switch (g)
+            {
+                case SystemGroup.FrameSetup:
                 {
-                    var name = late[i].GetType().Name;
-                    using var scope = _traceCenter.SystemScope(name);
-                    try
+                    foreach (IFixedSetupSystem s in _plan.FrameSetup.OfType<IFixedSetupSystem>())
                     {
-                        late[i].LateRun(world);
+                        s.Run(_w);
                     }
-                    catch
-                    {
-                        ((EcsTraceCenter.Scope)scope).MarkException();
-                        throw;
-                    }
+                    break;
                 }
-                else
+                case SystemGroup.Simulation:
                 {
-                    late[i].LateRun(world);
+                    foreach (IFixedRunSystem s in _plan.Simulation.OfType<IFixedRunSystem>())
+                    {
+                        s.Run(_w);
+                    }
+                    break;
                 }
-#else
-                late[i].LateRun(world);
-#endif
             }
         }
 
-        public void Dispose()
+        private void RunGroup(SystemGroup g)
         {
-            for (int i = 0; i < dispose.Count; i++) dispose[i].Dispose(world);
-            ZenECS.Core.Infrastructure.EcsRuntimeDirectory.Detach();
+            if (_plan == null)
+            {
+                return;
+            }
+
+            switch (g)
+            {
+                case SystemGroup.FrameSetup:
+                {
+                    foreach (IFrameSetupSystem s in _plan.FrameSetup.OfType<IFrameSetupSystem>())
+                    {
+                        s.Run(_w);
+                    }
+                    break;
+                }
+                case SystemGroup.Simulation:
+                {
+                    foreach (IVariableRunSystem s in _plan.Simulation.OfType<IVariableRunSystem>())
+                    {
+                        s.Run(_w);
+                    }
+                    break;
+                }
+            }
+        }
+
+        private void RunLateGroup(SystemGroup g, float interpolationAlpha = 1.0f)
+        {
+            if (_plan == null)
+            {
+                return;
+            }
+
+            if (g == SystemGroup.Presentation)
+            {
+                foreach (IPresentationSystem s in _plan.Presentation.OfType<IPresentationSystem>())
+                {
+                    s.Run(_w, interpolationAlpha);
+                }
+            }
         }
     }
 }

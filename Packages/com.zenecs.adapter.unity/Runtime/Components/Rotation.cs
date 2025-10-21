@@ -51,10 +51,10 @@ namespace ZenECS.Adapter.Unity.Components.Common
 
         public override Rotation ReadTyped(ISnapshotBackend backend)
         {
-            var x = backend.ReadFloat();
-            var y = backend.ReadFloat();
-            var z = backend.ReadFloat();
-            var w = backend.ReadFloat();
+            float x = backend.ReadFloat();
+            float y = backend.ReadFloat();
+            float z = backend.ReadFloat();
+            float w = backend.ReadFloat();
             return new Rotation(new quaternion(x, y, z, w));
         }
     }

@@ -1,0 +1,38 @@
+﻿<?xml version='1.0' encoding='utf-8'?>
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <!-- 멀티 타깃 그대로 유지 -->
+        <Nullable>enable</Nullable>
+        <LangVersion>latest</LangVersion>
+        <!-- 자동 AssemblyInfo 생성 끄기 -->
+        <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+        <GenerateTargetFrameworkAttribute>false</GenerateTargetFrameworkAttribute>
+        <!-- 빌드 출력 위치 -->
+        <BaseIntermediateOutputPath>$(MSBuildThisFileDirectory)obj\</BaseIntermediateOutputPath>
+        <OutputPath>$(MSBuildThisFileDirectory)bin\$(Configuration)\</OutputPath>
+        <IsPackable>true</IsPackable>
+        <PackageId>ZenECS.Core</PackageId>
+        <Version>1.0.0</Version>
+        <Authors>CK</Authors>
+        <Company>Pippapips Limited</Company>
+        <Product>ZenECS Core</Product>
+        <RepositoryUrl>https://github.com/Pippapips/ZenECS</RepositoryUrl>
+        <Description>Pure C# ECS core (engine-agnostic). Unity UPM + .NET friendly.</Description>
+        <PackageLicenseExpression>MIT</PackageLicenseExpression>
+        <TargetFramework>netstandard2.1</TargetFramework>
+        <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    </PropertyGroup>
+    <!-- 런타임 소스만 포함 -->
+    <ItemGroup>
+        <Compile Include="..\Packages\com.zenecs.core\Runtime\**\*.cs" Exclude="..\Packages\com.zenecs.core\Runtime\**\*.gen.cs" />
+        <None Remove="..\Packages\com.zenecs.core\**\*.meta" />
+        <None Remove="..\Packages\com.zenecs.core\Runtime\**\*.asmdef" />
+        <!-- obj/** 파일들이 포함되지 않도록 명시 -->
+        <Compile Remove="obj/**" />
+        <None Remove="obj/**" />
+    </ItemGroup>
+    <!-- 선택적으로 플랫폼별 Define 추가 -->
+    <PropertyGroup>
+        <DefineConstants>$(DefineConstants);ZENECS_CORE;NO_UNITY</DefineConstants>
+    </PropertyGroup>
+</Project>

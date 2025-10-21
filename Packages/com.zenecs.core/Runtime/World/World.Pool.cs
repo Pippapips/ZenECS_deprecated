@@ -1,13 +1,16 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq.Expressions;
-using System.Runtime.Serialization;
 using ZenECS.Core.Internal;
+using System.Runtime.CompilerServices; // RuntimeHelpers
+using System.Reflection;
 
 namespace ZenECS.Core
 {
     public sealed partial class World
     {
+        private readonly Dictionary<Type, IComponentPool> pools;
+
         // Type -> IComponentPool 생성 팩토리 캐시
         static readonly Dictionary<Type, Func<IComponentPool>> _poolFactories = new();
 
@@ -25,18 +28,14 @@ namespace ZenECS.Core
                     var newExpr = Expression.New(ctor);
                     var varP = Expression.Variable(typeof(IComponentPool), "p");
                     var assign = Expression.Assign(varP, Expression.Convert(newExpr, typeof(IComponentPool)));
-                    var callInit = Expression.Call(varP,
-                        typeof(IComponentPool).GetMethod(nameof(IComponentPool.EnsureInitialized)));
-                    var block = Expression.Block(new[] { varP }, assign, callInit, varP);
+                    var block = Expression.Block(new[] { varP }, assign, varP);
                     f = Expression.Lambda<Func<IComponentPool>>(block).Compile();
                 }
                 else
                 {
                     f = () =>
                     {
-                        var obj = (IComponentPool)FormatterServices.GetUninitializedObject(closed);
-                        obj.EnsureInitialized();
-                        return obj;
+                        return (IComponentPool)RuntimeHelpers.GetUninitializedObject(closed);;
                     };
                 }
             }
@@ -44,9 +43,7 @@ namespace ZenECS.Core
             {
                 f = () =>
                 {
-                    var obj = (IComponentPool)FormatterServices.GetUninitializedObject(closed);
-                    obj.EnsureInitialized();
-                    return obj;
+                    return (IComponentPool)RuntimeHelpers.GetUninitializedObject(closed);
                 };
             }
 

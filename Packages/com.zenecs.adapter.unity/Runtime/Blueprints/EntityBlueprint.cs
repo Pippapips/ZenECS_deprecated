@@ -1,9 +1,9 @@
 ﻿using UnityEngine;
+using ZenECS.Adapter.Unity.Binding;
 using ZenECS.Adapter.Unity.Components.Common;
-using ZenECS.Adapter.Unity.Sync.Targets;
 using ZenECS.Core;
+using ZenECS.Core.Binding;
 using ZenECS.Core.Extensions;
-using ZenECS.Core.Sync;
 
 namespace ZenECS.Adapter.Unity.Blueprints
 {
@@ -19,12 +19,12 @@ namespace ZenECS.Adapter.Unity.Blueprints
         public Quaternion rotation = Quaternion.identity;
         public Vector3 scale = Vector3.one;
 
-        public Entity Create(World world, IViewTargetFactory factory)
+        public Entity Create(World world, IViewBinderFactory factory)
         {
             var e = world.CreateEntity();
             _data.ApplyTo(world, e);
 
-            var view = target.GetComponent<ISyncTarget>();
+            var view = target.GetComponent<IViewBinder>();
             if (view != null)
             {
                 var viewTarget = factory.Create(target);

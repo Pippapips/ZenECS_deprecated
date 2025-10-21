@@ -42,9 +42,9 @@ namespace ZenECS.Adapter.Unity.Components.Common
 
         public override Scale ReadTyped(ISnapshotBackend backend)
         {
-            var x = backend.ReadFloat();
-            var y = backend.ReadFloat();
-            var z = backend.ReadFloat();
+            float x = backend.ReadFloat();
+            float y = backend.ReadFloat();
+            float z = backend.ReadFloat();
             return new Scale(new float3(x, y, z));
         }
     }

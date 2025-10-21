@@ -9,9 +9,14 @@ namespace ZenECS.Codegen.Registry
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
     private static void Register()
     {
-      ComponentRegistry.RegisterFormatter(new ZenECS.Adapter.Unity.Components.Common.PositionFormatterV1());
+      // Latest-for-write
+      ComponentRegistry.RegisterFormatter(new ZenECS.Adapter.Unity.Components.Common.PositionFormatterV2());
+      // Latest-for-write
       ComponentRegistry.RegisterFormatter(new ZenECS.Adapter.Unity.Components.Common.RotationFormatterV1());
+      // Latest-for-write
       ComponentRegistry.RegisterFormatter(new ZenECS.Adapter.Unity.Components.Common.ScaleFormatterV1());
+      // Legacy-readonly (StableId='com.zenecs.position.v1')
+      ComponentRegistry.RegisterFormatter(new ZenECS.Adapter.Unity.Components.Common.PositionFormatter());
     }
   }
 }

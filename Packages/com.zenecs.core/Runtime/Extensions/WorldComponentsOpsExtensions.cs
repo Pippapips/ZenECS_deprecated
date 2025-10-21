@@ -1,4 +1,5 @@
 ﻿#nullable enable
+using System;
 using System.Runtime.CompilerServices;
 using ZenECS.Core.Infrastructure;
 
@@ -9,20 +10,30 @@ namespace ZenECS.Core.Extensions
     {
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void Add<T>(this World w, Entity e, in T v) where T:struct => EcsActions.Add(w, e, in v);
-        
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void Add<T>(this World w, Entity e, in T v, World.CommandBuffer cb) where T:struct => EcsActions.Add(w, e, in v, cb);
-        
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void AddOrReplace<T>(this World w, Entity e, in T v) where T:struct => EcsActions.AddOrReplace(w, e, in v);
-        
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void Replace<T>(this World w, Entity e, in T v) where T:struct => EcsActions.Replace(w, e, in v);
-        
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void Remove<T>(this World w, Entity e) where T:struct => EcsActions.Remove<T>(w, e);
-        
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static void Toggle<T>(this World w, Entity e, bool on) where T:struct => EcsActions.Toggle<T>(w, e, on);
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static bool Has<T>(this World w, Entity e) where T:struct => EcsActions.Has<T>(w, e);
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        public static T Read<T>(this World w, Entity e) where T:struct
+        {
+            if (!w.TryGetComponentInternal(e, out T v)) throw new InvalidOperationException($"Read<{typeof(T).Name}> missing on {e.Id}");
+            return v;
+        }
     }
 }

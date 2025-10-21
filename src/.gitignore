@@ -1,3 +1,13 @@
-# .NET
+# IDE
+.vs/
+.idea/
+*.user
+*.suo
+
+# Build
 bin/
 obj/
+*.nupkg
+
+# Rider/VS
+_ReSharper.Caches/

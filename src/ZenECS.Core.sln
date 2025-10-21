@@ -1,0 +1,64 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ZenECS.Core", "ZenECS.Core.csproj", "{5123AC5A-4916-4663-BEE0-A73EDDEAB1A9}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ZenEcsCoreSamples-01-Basic", "..\Packages\com.zenecs.core\Samples~\01-Basic\ZenEcsCoreSamples-01-Basic.csproj", "{46C933F1-FB87-4F3F-8171-E041112AD4A6}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ZenEcsCoreSamples-02-Messages", "..\Packages\com.zenecs.core\Samples~\02-Messages\ZenEcsCoreSamples-02-Messages.csproj", "{3316C29D-8ED4-4605-A082-78983782ACB4}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ZenEcsCoreSamples-03-CommandBuffer", "..\Packages\com.zenecs.core\Samples~\03-CommandBuffer\ZenEcsCoreSamples-03-CommandBuffer.csproj", "{78077338-86D7-417C-8B86-729C6E31F2F1}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ZenEcsCoreSamples-04-SnapshotIO-PostMig", "..\Packages\com.zenecs.core\Samples~\04-SnapshotIO-PostMig\ZenEcsCoreSamples-04-SnapshotIO-PostMig.csproj", "{1BBE6482-76C6-4997-BBFA-C835606ECF8C}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ZenEcsCoreSamples-05-WorldReset", "..\Packages\com.zenecs.core\Samples~\05-WorldReset\ZenEcsCoreSamples-05-WorldReset.csproj", "{1E2C2907-4536-45F3-85BE-FA9EA80FF3C0}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ZenEcsCoreSamples-06-WriteHooks-Validators", "..\Packages\com.zenecs.core\Samples~\06-WriteHooks-Validators\ZenEcsCoreSamples-06-WriteHooks-Validators.csproj", "{AB72C7EE-F23B-48AB-8FB1-B1C4AC4A6246}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ZenEcsCoreSamples-07-ComponentChangeFeed", "..\Packages\com.zenecs.core\Samples~\07-ComponentChangeFeed\ZenEcsCoreSamples-07-ComponentChangeFeed.csproj", "{3C59E1E3-16C0-43D6-BE06-4D735DD9848D}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ZenEcsCoreSamples-08-SystemRunner", "..\Packages\com.zenecs.core\Samples~\08-SystemRunner\ZenEcsCoreSamples-08-SystemRunner.csproj", "{09566587-C72E-4742-93DB-D918D765169A}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{5123AC5A-4916-4663-BEE0-A73EDDEAB1A9}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{5123AC5A-4916-4663-BEE0-A73EDDEAB1A9}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{5123AC5A-4916-4663-BEE0-A73EDDEAB1A9}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{5123AC5A-4916-4663-BEE0-A73EDDEAB1A9}.Release|Any CPU.Build.0 = Release|Any CPU
+		{46C933F1-FB87-4F3F-8171-E041112AD4A6}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{46C933F1-FB87-4F3F-8171-E041112AD4A6}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{46C933F1-FB87-4F3F-8171-E041112AD4A6}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{46C933F1-FB87-4F3F-8171-E041112AD4A6}.Release|Any CPU.Build.0 = Release|Any CPU
+		{3316C29D-8ED4-4605-A082-78983782ACB4}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3316C29D-8ED4-4605-A082-78983782ACB4}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3316C29D-8ED4-4605-A082-78983782ACB4}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3316C29D-8ED4-4605-A082-78983782ACB4}.Release|Any CPU.Build.0 = Release|Any CPU
+		{78077338-86D7-417C-8B86-729C6E31F2F1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{78077338-86D7-417C-8B86-729C6E31F2F1}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{78077338-86D7-417C-8B86-729C6E31F2F1}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{78077338-86D7-417C-8B86-729C6E31F2F1}.Release|Any CPU.Build.0 = Release|Any CPU
+		{1BBE6482-76C6-4997-BBFA-C835606ECF8C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{1BBE6482-76C6-4997-BBFA-C835606ECF8C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{1BBE6482-76C6-4997-BBFA-C835606ECF8C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{1BBE6482-76C6-4997-BBFA-C835606ECF8C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{1E2C2907-4536-45F3-85BE-FA9EA80FF3C0}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{1E2C2907-4536-45F3-85BE-FA9EA80FF3C0}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{1E2C2907-4536-45F3-85BE-FA9EA80FF3C0}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{1E2C2907-4536-45F3-85BE-FA9EA80FF3C0}.Release|Any CPU.Build.0 = Release|Any CPU
+		{AB72C7EE-F23B-48AB-8FB1-B1C4AC4A6246}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{AB72C7EE-F23B-48AB-8FB1-B1C4AC4A6246}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{AB72C7EE-F23B-48AB-8FB1-B1C4AC4A6246}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{AB72C7EE-F23B-48AB-8FB1-B1C4AC4A6246}.Release|Any CPU.Build.0 = Release|Any CPU
+		{3C59E1E3-16C0-43D6-BE06-4D735DD9848D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3C59E1E3-16C0-43D6-BE06-4D735DD9848D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3C59E1E3-16C0-43D6-BE06-4D735DD9848D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3C59E1E3-16C0-43D6-BE06-4D735DD9848D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{09566587-C72E-4742-93DB-D918D765169A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{09566587-C72E-4742-93DB-D918D765169A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{09566587-C72E-4742-93DB-D918D765169A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{09566587-C72E-4742-93DB-D918D765169A}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal

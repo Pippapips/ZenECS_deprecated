@@ -101,6 +101,6 @@ InitTestScene*.unity*
 # Auto-generated scenes by play mode tests
 /[Aa]ssets/[Ii]nit[Tt]est[Ss]cene*.unity*
 
-# .NET
-obj/
-bin/
+# 샘플 .NET 콘솔 빌드 산출물 숨기기
+**/Samples~/**/bin/
+**/Samples~/**/obj/

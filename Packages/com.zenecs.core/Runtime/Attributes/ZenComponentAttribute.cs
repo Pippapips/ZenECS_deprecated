@@ -1,4 +1,5 @@
-﻿using System;
+﻿#nullable enable
+using System;
 using System.Diagnostics; // Conditional
 
 namespace ZenECS.Core
@@ -8,11 +9,6 @@ namespace ZenECS.Core
     [Conditional("UNITY_EDITOR")]
     public sealed class ZenComponentAttribute : Attribute
     {
-        public ZenComponentAttribute(string stableId)
-        {
-            StableId = stableId;
-        }
-
-        public string StableId { get; set; } // 세이브/네트워킹용(옵션)
+        public string? StableId { get; set; } // 세이브/네트워킹용(옵션)
     }
 }

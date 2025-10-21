@@ -1,0 +1,24 @@
+name: UPM Core & Tag
+
+on:
+  workflow_dispatch:
+    inputs:
+      core_version:
+        description: 'Core version (e.g., 1.0.0)'
+        required: false
+
+jobs:
+  split:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Split Core
+        if: ${{ inputs.core_version != '' }}
+        run: |
+          git subtree split --prefix=Packages/com.zenecs.core -b split/core
+          git tag -f upm-core-${{ inputs.core_version }} split/core
+          git push origin split/core --force
+          git push origin --tags --force

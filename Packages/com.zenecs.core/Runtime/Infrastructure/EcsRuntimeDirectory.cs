@@ -1,12 +1,10 @@
-﻿using System;
+﻿#nullable enable
+using System;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using ZenECS.Core;
-using ZenECS.Core.Sync;
+using ZenECS.Core.Binding;
 using ZenECS.Core.Systems;
-#if ZENECS_TRACE
-using ZenECS.Core.Diagnostics;
-#endif
 
 namespace ZenECS.Core.Infrastructure
 {
@@ -22,12 +20,8 @@ namespace ZenECS.Core.Infrastructure
         private static World? _world;
         private static ISystem[]? _systems;           // store as arrays for minimal overhead
         private static ISystem[]? _runningSystems;
-        private static ISyncTargetRegistry? _syncTargetRegistry;
-        private static ISyncHandlerRegistry? _syncHandlerRegistry;
-
-#if ZENECS_TRACE
-        private static EcsTraceCenter _traceCenter;
-#endif
+        private static IViewBinderRegistry? _syncTargetRegistry;
+        private static IComponentBinderRegistry? _syncHandlerRegistry;
 
         /// <summary>Raised whenever World/Systems set changes (Attach/Detach).</summary>
         public static event Action? Changed;
@@ -46,43 +40,23 @@ namespace ZenECS.Core.Infrastructure
 
         public static IReadOnlyList<ISystem> Systems
         {
-            get { lock (_gate) return _systems ?? []; }
+            get { lock (_gate) return _systems ?? Array.Empty<ISystem>(); }
         }
 
         public static IReadOnlyList<ISystem> RunningSystems
         {
-            get { lock (_gate) return _runningSystems ?? []; }
+            get { lock (_gate) return _runningSystems ?? Array.Empty<ISystem>(); }
         }
 
-        public static ISyncTargetRegistry? SyncTargetRegistry
+        public static IViewBinderRegistry? SyncTargetRegistry
         {
             get { lock (_gate) return _syncTargetRegistry; }
         }
 
-        public static ISyncHandlerRegistry? SyncHandlerRegistry
+        public static IComponentBinderRegistry? SyncHandlerRegistry
         {
             get { lock (_gate) return _syncHandlerRegistry; }
         }
-
-#if ZENECS_TRACE
-        public static EcsTraceCenter TraceCenter
-        {
-            get { lock (_gate) return _traceCenter; }
-        }
-
-        /// <summary>Attach a trace center (editor/runtime diagnostics).</summary>
-        public static void AttachTraceCenter(EcsTraceCenter traceCenter)
-        {
-            Action changed;
-            lock (_gate)
-            {
-                _traceCenter = traceCenter;
-                // Reuse Changed to keep listeners simple (optional, comment out if undesired)
-                changed = Changed;
-            }
-            changed?.Invoke();
-        }
-#endif
 
         /// <summary>
         /// Attach the active World and its systems. Calculates RunningSystems fast without LINQ.
@@ -106,7 +80,7 @@ namespace ZenECS.Core.Infrastructure
         /// <summary>
         /// Attach the SyncTarget registry (typically provided by the Unity Adapter).
         /// </summary>
-        public static void AttachSyncTargetRegistry(ISyncTargetRegistry syncTargetRegistry)
+        public static void AttachSyncTargetRegistry(IViewBinderRegistry syncTargetRegistry)
         {
             Action? changedEvt;
             lock (_gate)
@@ -120,7 +94,7 @@ namespace ZenECS.Core.Infrastructure
         /// <summary>
         /// Attach the SyncHandler registry (typically provided by the Unity Adapter).
         /// </summary>
-        public static void AttachSyncHandlerRegistry(ISyncHandlerRegistry syncHandlerRegistry)
+        public static void AttachComponentBinderRegistry(IComponentBinderRegistry syncHandlerRegistry)
         {
             Action? changedEvt;
             lock (_gate)
@@ -144,9 +118,6 @@ namespace ZenECS.Core.Infrastructure
                 _runningSystems = null;
                 _syncTargetRegistry = null;
                 _syncHandlerRegistry = null;
-#if ZENECS_TRACE
-                _traceCenter = null;
-#endif
                 changed = Changed;
             }
             changed?.Invoke();
@@ -176,7 +147,7 @@ namespace ZenECS.Core.Infrastructure
                 if (IsRunningKind(all[i])) count++;
             }
 
-            if (count == 0) return [];
+            if (count == 0) return Array.Empty<ISystem>();
 
             var dst = new ISystem[count];
             var j = 0;
@@ -188,7 +159,7 @@ namespace ZenECS.Core.Infrastructure
 
             [MethodImpl(MethodImplOptions.AggressiveInlining)]
             static bool IsRunningKind(ISystem s)
-                => s is IRunSystem or IFixedRunSystem or ILateRunSystem;
+                => s is IVariableRunSystem or IFixedRunSystem or IPresentationSystem;
         }
     }
 }

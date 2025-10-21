@@ -23,6 +23,7 @@ namespace ZenECS.Core.Serialization
         bool ReadBool();
             
         long Position { get; set; }
+        void Rewind();
         long Length { get; }
     }
 }

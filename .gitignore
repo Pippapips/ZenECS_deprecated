@@ -1,5 +1,19 @@
-*.user
-*.suo
-*.DS_Store
-.vscode/
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vs/
 .idea/
+*.suo
+*.user
+_ReSharper.Caches/
+
+# Build artifacts (generic)
+bin/
+obj/
+TestResults/
+*.nupkg
+
+# Logs
+*.log
