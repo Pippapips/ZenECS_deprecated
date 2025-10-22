@@ -9,7 +9,7 @@ namespace ZenECS.Core.Binding.Systems
     [OrderBefore(typeof(ComponentBatchDispatchSystem))]
     public sealed class ComponentBindingHubSystem : ISystemLifecycle, IPresentationSystem
     {
-        private readonly List<ComponentChangeRecord> _batch = new();
+        private readonly System.Collections.Generic.Dictionary<(Entity, System.Type), ComponentChangeMask> _batch = new();
         private readonly IComponentChangeFeed _feed;
 
         public ComponentBindingHubSystem(IComponentChangeFeed feed)
@@ -34,7 +34,7 @@ namespace ZenECS.Core.Binding.Systems
         public void Run(World w)
         {
             if (_batch.Count == 0) return;
-            _feed.PublishBatch(_batch);
+            _feed.PublishBatch(System.Linq.Enumerable.ToList(System.Linq.Enumerable.Select(_batch, kv => new ComponentChangeRecord(kv.Key.Item1, kv.Key.Item2, kv.Value))));
             _batch.Clear();
         }
 
@@ -45,17 +45,17 @@ namespace ZenECS.Core.Binding.Systems
 
         private void EcsEventsOnComponentAdded(World w, Entity e, Type t)
         {
-            _batch.Add(new ComponentChangeRecord(e, t, ComponentChangeMask.Added));
+            _batch[(e, t)] = ComponentChangeMask.Added;
         }
 
         private void EcsEventsOnComponentRemoved(World w, Entity e, Type t)
         {
-            _batch.Add(new ComponentChangeRecord(e, t, ComponentChangeMask.Removed));
+            _batch[(e, t)] = ComponentChangeMask.Removed;
         }
 
         private void EcsEventsOnComponentChanged(World w, Entity e, Type t)
         {
-            _batch.Add(new ComponentChangeRecord(e, t, ComponentChangeMask.Changed));
+            _batch[(e, t)] = ComponentChangeMask.Changed;
         }
     }
 }

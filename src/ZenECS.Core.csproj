@@ -30,6 +30,9 @@
         <!-- obj/** 파일들이 포함되지 않도록 명시 -->
         <Compile Remove="obj/**" />
         <None Remove="obj/**" />
+        <Compile Update="..\Packages\com.zenecs.core\Runtime\Binding\Util\InlineMatinThreadGate.cs">
+          <Link>Binding\Util\InlineMatinThreadGate.cs</Link>
+        </Compile>
     </ItemGroup>
     <!-- 선택적으로 플랫폼별 Define 추가 -->
     <PropertyGroup>

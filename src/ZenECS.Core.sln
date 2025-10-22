@@ -18,6 +18,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ZenEcsCoreSamples-07-Compon
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ZenEcsCoreSamples-08-SystemRunner", "..\Packages\com.zenecs.core\Samples~\08-SystemRunner\ZenEcsCoreSamples-08-SystemRunner.csproj", "{09566587-C72E-4742-93DB-D918D765169A}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ZenECS.Binding.ConsoleSample", "..\Packages\com.zenecs.core\Samples~\ZenECS.Binding.ConsoleSample\ZenECS.Binding.ConsoleSample.csproj", "{918D64E2-C3E1-4C52-9C33-8539875BF176}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -60,5 +62,9 @@ Global
 		{09566587-C72E-4742-93DB-D918D765169A}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{09566587-C72E-4742-93DB-D918D765169A}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{09566587-C72E-4742-93DB-D918D765169A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{918D64E2-C3E1-4C52-9C33-8539875BF176}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{918D64E2-C3E1-4C52-9C33-8539875BF176}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{918D64E2-C3E1-4C52-9C33-8539875BF176}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{918D64E2-C3E1-4C52-9C33-8539875BF176}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

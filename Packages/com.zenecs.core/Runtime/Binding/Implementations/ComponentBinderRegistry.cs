@@ -9,8 +9,10 @@ namespace ZenECS.Core.Binding
     /// - 스레드: 메인 스레드 사용을 전제로 한 간단한 Dictionary 기반
     /// - 필요 시 ConcurrentDictionary로 바꾸거나, 락을 추가해 다중 스레드 대응 가능
     /// </summary>
-    public sealed class ComponentBinderRegistry : IComponentBinderRegistry
+    public sealed class ComponentBinderRegistry : IComponentBinderRegistry, IComponentBinderResolver
     {
+        private readonly HashSet<System.Type> _registeredTypes = new();
+
         // Type -> factory (Resolve 시마다 새 인스턴스 생성)
         private readonly Dictionary<Type, Func<IComponentBinder>> _factories = new();
 
@@ -23,9 +25,10 @@ namespace ZenECS.Core.Binding
         {
             Infrastructure.EcsRuntimeDirectory.AttachComponentBinderRegistry(this);
         }
-        
+
         public void RegisterFactory<T>(Func<IComponentBinder> factory)
         {
+            _registeredTypes.Add(typeof(T));
             if (factory is null) throw new ArgumentNullException(nameof(factory));
             ThrowIfDisposed();
 
@@ -38,6 +41,7 @@ namespace ZenECS.Core.Binding
             if (instance is null) throw new ArgumentNullException(nameof(instance));
             ThrowIfDisposed();
 
+            _registeredTypes.Add(typeof(T));
             _singletons[typeof(T)] = instance;
             // 싱글턴 등록 시 기존 팩토리가 있어도 우선순위는 싱글턴이 먼저입니다(Resolve 구현 참고).
         }
@@ -74,6 +78,11 @@ namespace ZenECS.Core.Binding
             }
 
             removed |= _factories.Remove(componentType);
+
+            // 더 이상 어떤 방식으로도 등록되어 있지 않다면 집합에서 제거
+            if (!_singletons.ContainsKey(componentType) && !_factories.ContainsKey(componentType))
+                _registeredTypes.Remove(componentType);
+
             return removed;
         }
 
@@ -87,6 +96,25 @@ namespace ZenECS.Core.Binding
 
             _singletons.Clear();
             _factories.Clear();
+            _registeredTypes.Clear();
+        }
+
+        public System.Collections.Generic.IReadOnlyCollection<System.Type> RegisteredComponentTypes => _registeredTypes;
+
+        public bool TryResolve(System.Type componentType, out IComponentBinder binder)
+        {
+            if (_singletons.TryGetValue(componentType, out var s))
+            {
+                binder = s;
+                return true;
+            }
+            if (_factories.TryGetValue(componentType, out var f))
+            {
+                binder = f();
+                return true;
+            }
+            binder = default!;
+            return false;
         }
 
         public void Dispose()
