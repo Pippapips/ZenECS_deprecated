@@ -41,7 +41,8 @@ namespace ZenECS.Core.Binding.Systems
             {
                 var rec = _queue.Dequeue();
                 var t = rec.ComponentType;
-                if ((rec.Mask & ComponentChangeMask.Removed) != 0)
+                if (t is null) continue;
+if ((rec.Mask & ComponentChangeMask.Removed) != 0)
                 {
                     GenericInvokerCache.Invoke(
                         target: _host,

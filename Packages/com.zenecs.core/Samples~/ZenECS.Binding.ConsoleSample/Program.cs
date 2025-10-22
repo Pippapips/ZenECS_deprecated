@@ -59,6 +59,7 @@ namespace ZenECS.Binding.ConsoleSample
             IMainThreadGate gate = new DefaultMainThreadGate();
             var changeFeed = new ComponentChangeFeed(gate);
             var binderRegistry = new ComponentBinderRegistry();
+            var resolver       = new ComponentBinderResolver(binderRegistry);
             var viewRegistry = new ViewBinderRegistry();
 
             binderRegistry.RegisterSingleton<Position>(new PositionBinder());
@@ -66,7 +67,7 @@ namespace ZenECS.Binding.ConsoleSample
             var world = new World();
 
             var hub = new ComponentBindingHubSystem(changeFeed);
-            var binding = new ViewBindingSystem(viewRegistry, binderRegistry, binderRegistry);
+            var binding = new ViewBindingSystem(viewRegistry, binderRegistry, resolver);
             var dispatch = new ComponentBatchDispatchSystem(changeFeed, binding);
 
             void RunFrame(Action body)

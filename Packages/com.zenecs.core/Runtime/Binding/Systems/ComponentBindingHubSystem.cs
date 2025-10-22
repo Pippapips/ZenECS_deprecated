@@ -45,16 +45,19 @@ namespace ZenECS.Core.Binding.Systems
 
         private void EcsEventsOnComponentAdded(World w, Entity e, Type t)
         {
+            if (t is null) return;
             _batch[(e, t)] = ComponentChangeMask.Added;
         }
 
         private void EcsEventsOnComponentRemoved(World w, Entity e, Type t)
         {
+            if (t is null) return;
             _batch[(e, t)] = ComponentChangeMask.Removed;
         }
 
         private void EcsEventsOnComponentChanged(World w, Entity e, Type t)
         {
+            if (t is null) return;
             _batch[(e, t)] = ComponentChangeMask.Changed;
         }
     }

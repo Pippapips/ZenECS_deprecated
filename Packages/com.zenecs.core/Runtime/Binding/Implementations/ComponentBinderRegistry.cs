@@ -9,7 +9,7 @@ namespace ZenECS.Core.Binding
     /// - 스레드: 메인 스레드 사용을 전제로 한 간단한 Dictionary 기반
     /// - 필요 시 ConcurrentDictionary로 바꾸거나, 락을 추가해 다중 스레드 대응 가능
     /// </summary>
-    public sealed class ComponentBinderRegistry : IComponentBinderRegistry, IComponentBinderResolver
+    public sealed class ComponentBinderRegistry : IComponentBinderRegistry
     {
         private readonly HashSet<System.Type> _registeredTypes = new();
 
