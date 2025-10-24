@@ -1,15 +1,34 @@
-﻿using ZenECS.Core.Serialization;
+﻿// ──────────────────────────────────────────────────────────────────────────────
+// ZenECS Core
+// File: IPostLoadMigration.cs
+// Purpose: Post-load world migration step executed after all pools are restored.
+// Key concepts:
+//   • Ordered execution by ascending Order value.
+//   • Must be idempotent (running multiple times yields the same final state).
+//   • Suitable for re-binding, index rebuilds, or data corrections across the world.
+// 
+// Copyright (c) 2025 Pippapips Limited
+// License: MIT
+// SPDX-License-Identifier: MIT
+// ──────────────────────────────────────────────────────────────────────────────
+#nullable enable
+using ZenECS.Core.Serialization;
 
 namespace ZenECS.Core.Serialization
 {
     /// <summary>
-    /// 스냅샷을 모두 로드(풀들까지 채움)한 뒤, 월드 전역에서 실행되는 후처리 마이그레이션.
-    /// - 순서 번호(Order)로 실행 순서를 제어한다(낮은 → 높은).
-    /// - 반드시 idempotent 하게 작성(여러 번 실행돼도 결과 동일).
+    /// Runs after a full snapshot load (after component pools are populated) to perform
+    /// global fixes or migrations. Implementations must be <b>idempotent</b>.
+    /// Lower <see cref="Order"/> runs first.
     /// </summary>
     public interface IPostLoadMigration
     {
-        int Order { get; }     // 실행 순서(낮은 값 먼저)
-        void Run(World world); // 월드 전역에서 필요한 보정/리바인딩/인덱스 재구축 등
+        /// <summary>Execution order (lower values run earlier).</summary>
+        int Order { get; }
+
+        /// <summary>
+        /// Executes the migration over the entire world (e.g., re-binding, index rebuild, data corrections).
+        /// </summary>
+        void Run(World world);
     }
 }

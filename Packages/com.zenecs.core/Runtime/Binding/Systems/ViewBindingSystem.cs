@@ -1,21 +1,35 @@
+// ──────────────────────────────────────────────────────────────────────────────
+// ZenECS Core
+// File: ViewBindingSystem.cs
+// Purpose: Binds/unbinds components to views and applies updates during presentation.
+// Key concepts:
+//   • Rebinds on demand via IViewBinderRegistry.Registered event and internal queue.
+//   • Uses fast/boxed invokers depending on World.TryGet<T>(...) availability.
+//   • Tracks last applied hashes to skip redundant applies during reconciliation.
+// 
+// Copyright (c) 2025 Pippapips Limited
+// License: MIT (https://opensource.org/licenses/MIT)
+// SPDX-License-Identifier: MIT
+// ──────────────────────────────────────────────────────────────────────────────
 #nullable enable
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using ZenECS.Core.Systems;
 using ZenECS.Core.Binding.Util;
+using ZenECS.Core.Systems;
 
 namespace ZenECS.Core.Binding.Systems
 {
     [PresentationGroup]
-    public sealed class ViewBindingSystem : ISystemLifecycle, IPresentationSystem
+    internal sealed class ViewBindingSystem : ISystemLifecycle, IPresentationSystem
     {
-        // Key: (Entity, read-only struct Component)
-        private void ApplyWithCaches(World w, Entity e, System.Type componentType, IViewBinder vb, IComponentBinder binder, object? boxedValueIfNeeded)
+        /// <summary>
+        /// Applies a component value using either a zero-boxing fast path or the boxed fallback:
+        /// - Fast path: if World exposes TryGet&lt;T&gt;(Entity, out T) / TryGetComponentInternal&lt;T&gt;(...).
+        /// - Fallback: boxed Apply via BinderInvokerCache.
+        /// </summary>
+        private void ApplyWithCaches(World w, Entity e, Type componentType, IViewBinder vb, IComponentBinder binder, object? boxedValueIfNeeded)
         {
-            var sig = new[] { typeof(Entity), componentType.MakeByRefType() };
-            
-            // World에 제네릭 TryGet<T>(Entity, out T) 또는 TryGetComponentInternal<T>(...)가 정의되어 있으면 FastPath 사용
             var hasGenericTryGet =
                 typeof(World)
                     .GetMethods(System.Reflection.BindingFlags.Instance |
@@ -28,26 +42,26 @@ namespace ZenECS.Core.Binding.Systems
                         m.GetParameters().Length == 2 &&
                         m.GetParameters()[0].ParameterType == typeof(Entity) &&
                         m.GetParameters()[1].ParameterType.IsByRef);
+
             if (hasGenericTryGet)
                 BinderFastInvokerCache.GetApplyNoBox(componentType)(w, e, vb, binder);
             else
                 BinderInvokerCache.GetApply(componentType)(w, e, boxedValueIfNeeded!, vb, binder);
         }
 
-
         private readonly Dictionary<(Entity, Type), IComponentBinder> _activeComponentBinders = new();
 
-        // Rebind 대기 엔티티 (중복 방지)
+        // Rebind queue (duplicates suppressed)
         private readonly HashSet<Entity> _rebindPending = new();
-        private readonly Dictionary<(Entity, System.Type), int> _lastHashes = new();
+        private readonly Dictionary<(Entity, Type), int> _lastHashes = new();
 
         private readonly IViewBinderRegistry _viewBinderRegistry;
         private readonly IComponentBinderResolver _resolver;
         private readonly IComponentBinderRegistry _componentBinderRegistry;
 
         public ViewBindingSystem(IViewBinderRegistry viewBinderRegistry,
-            IComponentBinderRegistry componentBinderRegistry,
-            IComponentBinderResolver resolver)
+                                 IComponentBinderRegistry componentBinderRegistry,
+                                 IComponentBinderResolver resolver)
         {
             _componentBinderRegistry = componentBinderRegistry;
             _viewBinderRegistry = viewBinderRegistry;
@@ -57,13 +71,14 @@ namespace ZenECS.Core.Binding.Systems
         public void Initialize(World w)
         {
             _viewBinderRegistry.Registered += OnViewBinderRegistered;
-
-            // snapshot reconciliation API
         }
 
         public void Shutdown(World w)
         {
             _viewBinderRegistry.Registered -= OnViewBinderRegistered;
+            _rebindPending.Clear();
+            _activeComponentBinders.Clear();
+            _lastHashes.Clear();
         }
 
         public void Run(World w)
@@ -80,16 +95,30 @@ namespace ZenECS.Core.Binding.Systems
             _rebindPending.Clear();
         }
 
-        public void Run(World w, float alpha = 1)
+        // Compatibility overload (alpha unused by this system)
+        public void Run(World w, float alpha = 1) { Run(w); }
+
+        /// <summary>
+        /// Ignore the provided binder in event payload and resolve it at the time of handling.
+        /// (Allows deferred handling.)
+        /// </summary>
+        private void OnViewBinderRegistered(Entity e, IViewBinder _) => RequestReconcile(e);
+
+        internal void NotifyChangedViaFeed(Entity e)
         {
-            Run(w);
+            // Entities processed via batch dispatch within the same frame
+            // are removed from the pending Reconcile queue to prevent duplicate Apply calls.
+            _rebindPending.Remove(e);
         }
-
-        // 지연된 처리를 위해서 파라미터로 들어오는 ViewBinder는 무시하고 해당 시점에 Resolve하도록 한다.
-        private void OnViewBinderRegistered(Entity e, IViewBinder _) => RequestRebind(e);
-
-        // 외부에서 직접 호출해도 됨(씬/세이브로드/LOD 전환 등)
-        public void RequestRebind(Entity e) => _rebindPending.Add(e);
+        
+        /// <summary>
+        /// Can be called externally (scene load, save/load, LOD switch, etc.).
+        /// </summary>
+        public void RequestReconcile(Entity e)
+        {
+            // Mark in the pending queue without going through the batch feed.
+            _rebindPending.Add(e);
+        } 
 
         public void OnComponentAdded<T>(World w, Entity e, in T v)
         {
@@ -97,25 +126,25 @@ namespace ZenECS.Core.Binding.Systems
 
             var key = (e, typeof(T));
 
-            // 1) 뷰 바인더 조회 (없으면 표현 스킵)
+            // 1) Resolve view binder; if absent, skip presentation.
             var viewBinder = _viewBinderRegistry.Resolve(e);
             if (viewBinder is null) return;
 
-            // 2) 컴포넌트 바인더 조회 (등록 안 되어 있으면 스킵)
+            // 2) Resolve component binder; if unregistered, skip.
             var componentBinder = _componentBinderRegistry.Resolve<T>();
             if (componentBinder is null) return;
 
-            // 3) 이미 활성화돼 있다면(중복 Added 방어) 'Apply'만 수행하고 종료
+            // 3) If already active (defense against duplicate "Added"), just Apply and return.
             if (_activeComponentBinders.TryGetValue(key, out var existing))
             {
-                existing?.Apply(w, e, v, viewBinder);
+                existing.Apply(w, e, v, viewBinder);
 #if ZENECS_TRACE
                 _traceCenter?.ViewBinding.OnApply();
 #endif
                 return;
             }
 
-            // 4) 최초 바인딩: Bind → Apply → 활성 테이블 등록
+            // 4) First-time binding: Bind → Apply → mark as active
             componentBinder.Bind(w, e, viewBinder);
             componentBinder.Apply(w, e, v, viewBinder);
 #if ZENECS_TRACE
@@ -131,11 +160,11 @@ namespace ZenECS.Core.Binding.Systems
 
             var key = (e, typeof(T));
 
-            // 1) 뷰 바인더 없으면 표현 스킵
+            // 1) Skip if view binder is missing
             var viewBinder = _viewBinderRegistry.Resolve(e);
             if (viewBinder is null) return;
 
-            // 2) 활성 컴포넌트 바인더가 있으면 Apply만
+            // 2) If an active component binder exists, Apply only
             if (_activeComponentBinders.TryGetValue(key, out var h) && h is IComponentBinder typedExisting)
             {
                 typedExisting.Apply(w, e, v, viewBinder);
@@ -145,7 +174,7 @@ namespace ZenECS.Core.Binding.Systems
                 return;
             }
 
-            // 3) 활성 없으면(Added를 못 받았거나 Rebind 이전 등) → 새로 Bind 후 Apply
+            // 3) If none active (missed Added or prior rebind), bind then apply
             var componentBinder = _componentBinderRegistry.Resolve<T>();
             if (componentBinder is null) return;
 
@@ -163,27 +192,20 @@ namespace ZenECS.Core.Binding.Systems
             var key = (e, typeof(T));
 
             if (!_activeComponentBinders.TryGetValue(key, out var h))
-                return; // 이미 비활성(중복 Removed 등)
+                return; // already inactive (duplicate Removed, etc.)
 
-            // 뷰 바인더를 가져오되, 없어도 안전하게 정리
+            // Obtain the view binder, if any, and unbind safely
             var viewBinder = _viewBinderRegistry.Resolve(e);
             if (viewBinder is not null && h is IComponentBinder typed)
             {
-                // 정상 언바인드
                 typed.Unbind(w, e, viewBinder);
 #if ZENECS_TRACE
                 _traceCenter?.ViewBinding.OnUnbind();
 #endif
             }
 
-            // 타깃이 없으면(이미 파괴됨) 핸들러만 테이블에서 제거
+            // If no view binder exists (already destroyed), just drop the handler
             _activeComponentBinders.Remove(key);
-        }
-
-        public void RequestReconcile(World w, Entity e)
-        {
-            // 배치 Feed로 보내지 않고, 내부 펜딩 큐에만 표시
-            _rebindPending.Add(e);
         }
 
         private void ReconcileEntity(World w, Entity e, IViewBinder vb)

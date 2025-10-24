@@ -12,7 +12,6 @@ namespace ZenECS.EditorUtils
         public static void Replace<T>(World w, Entity e, in T v) where T:struct => w.Replace(e, in v);
         public static void Remove<T>(World w, Entity e) where T:struct => w.Remove<T>(e);
         public static void Add<T>(World w, Entity e, in T v) where T:struct => w.Add(e, in v);
-        public static void Toggle<T>(World w, Entity e, bool on) where T:struct => w.Toggle<T>(e, on);
     }
 }
 #endif

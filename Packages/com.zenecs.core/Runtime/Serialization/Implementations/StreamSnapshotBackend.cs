@@ -1,4 +1,17 @@
-﻿#nullable enable
+﻿// ──────────────────────────────────────────────────────────────────────────────
+// ZenECS Core
+// File: StreamSnapshotBackend.cs
+// Purpose: Stream-based implementation of ISnapshotBackend.
+// Key concepts:
+//   • Provides binary read/write over .NET Stream with UTF8 encoding.
+//   • Supports both read-only and write-only modes.
+//   • Handles primitive and string types with strict length validation.
+// 
+// Copyright (c) 2025 Pippapips Limited
+// License: MIT
+// SPDX-License-Identifier: MIT
+// ──────────────────────────────────────────────────────────────────────────────
+#nullable enable
 using System;
 using System.IO;
 using System.Runtime.CompilerServices;
@@ -6,10 +19,10 @@ using System.Text;
 
 namespace ZenECS.Core.Serialization
 {
-    // =========================
-    // ISnapshotBackend (stream-based)
-    // =========================
-
+    /// <summary>
+    /// Stream-backed snapshot backend used for reading/writing component data.
+    /// Little-endian by default. Supports both read and write operations.
+    /// </summary>
     internal sealed class StreamSnapshotBackend : ISnapshotBackend, IDisposable
     {
         private readonly Stream _stream;
@@ -24,13 +37,9 @@ namespace ZenECS.Core.Serialization
             encoding ??= Encoding.UTF8;
 
             if (writable)
-            {
-                _bw = new BinaryWriter(stream, encoding, leaveOpen); // Little-endian
-            }
+                _bw = new BinaryWriter(stream, encoding, leaveOpen);
             else
-            {
-                _br = new BinaryReader(stream, encoding, leaveOpen); // Little-endian
-            }
+                _br = new BinaryReader(stream, encoding, leaveOpen);
         }
 
         public void Dispose()
@@ -39,6 +48,7 @@ namespace ZenECS.Core.Serialization
             _br?.Dispose();
         }
 
+        // ---- Byte block operations ---------------------------------------------------
         public void WriteBytes(ReadOnlySpan<byte> data)
         {
             EnsureWrite();
@@ -52,38 +62,18 @@ namespace ZenECS.Core.Serialization
             if (read != length) throw new EndOfStreamException();
         }
 
-        public void WriteInt(int v)
-        {
-            EnsureWrite();
-            _bw!.Write(v);
-        }
-        public int ReadInt()
-        {
-            EnsureRead();
-            return _br!.ReadInt32();
-        }
+        // ---- Primitive read/write ----------------------------------------------------
+        public void WriteInt(int v) { EnsureWrite(); _bw!.Write(v); }
+        public int ReadInt() { EnsureRead(); return _br!.ReadInt32(); }
 
-        public void WriteUInt(uint v)
-        {
-            EnsureWrite();
-            _bw!.Write(v);
-        }
-        public uint ReadUInt()
-        {
-            EnsureRead();
-            return _br!.ReadUInt32();
-        }
+        public void WriteUInt(uint v) { EnsureWrite(); _bw!.Write(v); }
+        public uint ReadUInt() { EnsureRead(); return _br!.ReadUInt32(); }
 
-        public void WriteFloat(float v)
-        {
-            EnsureWrite();
-            _bw!.Write(v);
-        }
-        public float ReadFloat()
-        {
-            EnsureRead();
-            return _br!.ReadSingle();
-        }
+        public void WriteFloat(float v) { EnsureWrite(); _bw!.Write(v); }
+        public float ReadFloat() { EnsureRead(); return _br!.ReadSingle(); }
+
+        public void WriteBool(bool v) { EnsureWrite(); _bw!.Write(v); }
+        public bool ReadBool() { EnsureRead(); return _br!.ReadBoolean(); }
 
         public void WriteString(string s)
         {
@@ -105,20 +95,9 @@ namespace ZenECS.Core.Serialization
             return Encoding.UTF8.GetString(buf);
         }
 
-        public void WriteBool(bool v)
-        {
-            EnsureWrite();
-            _bw!.Write(v);
-        }
-        public bool ReadBool()
-        {
-            EnsureRead();
-            return _br!.ReadBoolean();
-        }
-
+        // ---- Cursor management -------------------------------------------------------
         public long Position { get => _stream.Position; set => _stream.Position = value; }
         public long Length => _stream.Length;
-
         public void Rewind() => _stream.Position = 0;
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

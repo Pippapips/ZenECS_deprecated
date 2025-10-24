@@ -1,22 +1,54 @@
-﻿using System;
+﻿// ──────────────────────────────────────────────────────────────────────────────
+// ZenECS Core
+// File: ZenFormatterForAttribute.cs
+// Purpose: Editor/tooling-only attribute that declares which component a formatter handles.
+// Key concepts:
+//   • Excluded from runtime builds (guarded by UNITY_EDITOR).
+//   • Associates a component type with a stable serialization format identifier.
+//   • Supports marking the latest/default format used when saving.
+// 
+// Copyright (c) 2025 Pippapips Limited
+// License: MIT (https://opensource.org/licenses/MIT)
+// SPDX-License-Identifier: MIT
+// ──────────────────────────────────────────────────────────────────────────────
+#nullable enable
+using System;
 using System.Diagnostics; // Conditional
 
 namespace ZenECS.Core
 {
-    /// <summary>Editor/툴링 수집용. 런타임 메타데이터는 제외됩니다.</summary>
+    /// <summary>
+    /// Attribute used by editor/tooling to register a formatter for a specific component type.
+    /// Excluded from runtime builds via <c>UNITY_EDITOR</c>.
+    /// </summary>
     [AttributeUsage(AttributeTargets.Class | AttributeTargets.Struct, AllowMultiple = true, Inherited = false)]
     [Conditional("UNITY_EDITOR")]
     public sealed class ZenFormatterForAttribute : Attribute
     {
-        /// <summary>이 포매터가 처리하는 컴포넌트 타입</summary>
+        /// <summary>
+        /// The component type this formatter is responsible for.
+        /// </summary>
         public Type ComponentType { get; }
 
-        /// <summary>이 포매터가 읽고/쓰는 포맷의 StableId (예: com.game.position.v2)</summary>
+        /// <summary>
+        /// Stable identifier of the data format handled by this formatter
+        /// (e.g., <c>com.game.position.v2</c>).
+        /// </summary>
         public string StableId { get; }
 
-        /// <summary>Save 시 기본으로 사용(최신 포맷) 여부</summary>
+        /// <summary>
+        /// Indicates whether this formatter represents the latest/default format to use when saving.
+        /// </summary>
         public bool IsLatest { get; }
 
+        /// <summary>
+        /// Creates a new formatter mapping.
+        /// </summary>
+        /// <param name="componentType">Target component type.</param>
+        /// <param name="stableId">Stable ID of the serialization format (non-empty).</param>
+        /// <param name="isLatest">Whether this is the latest/default format when saving.</param>
+        /// <exception cref="ArgumentNullException">If <paramref name="componentType"/> is null.</exception>
+        /// <exception cref="ArgumentException">If <paramref name="stableId"/> is null or whitespace.</exception>
         public ZenFormatterForAttribute(Type componentType, string stableId, bool isLatest = false)
         {
             ComponentType = componentType ?? throw new ArgumentNullException(nameof(componentType));

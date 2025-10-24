@@ -1,4 +1,16 @@
-﻿#nullable enable
+﻿// ──────────────────────────────────────────────────────────────────────────────
+// ZenECS Core — World subsystem
+// File: World.CommandBuffer.cs
+// Purpose: Thread-safe command buffer for deferred or immediate structural changes.
+// Key concepts:
+//   • ConcurrentQueue of operations; Scheduled vs Immediate apply modes.
+//   • RunScheduledJobs to commit at frame boundaries.
+//
+// Copyright (c) 2025 Pippapips Limited
+// License: MIT (see LICENSE or https://opensource.org/licenses/MIT)
+// SPDX-License-Identifier: MIT
+// ──────────────────────────────────────────────────────────────────────────────
+#nullable enable
 using System.Collections.Concurrent;
 using ZenECS.Core.Extensions;
 
@@ -6,36 +18,41 @@ namespace ZenECS.Core
 {
     public sealed partial class World
     {
-        // 멀티스레드 커맨드 버퍼 + 스케줄
+        // Multithreaded command buffer + scheduling example:
         // var cb = world.BeginWrite();
         // cb.Add(e, new Damage { Amount = 10 });
         // cb.Remove<Stunned>(e);
-        // world.Schedule(cb);     // 프레임 경계에서 world.RunScheduledJobs() 시점에 적용
-        // 또는 world.EndWrite(cb); 로 즉시 적용
+        // world.Schedule(cb);     // Applied at the frame barrier when world.RunScheduledJobs() is called
+        // Or call world.EndWrite(cb); to apply immediately.
 
-        /// <summary>Write scope apply policy.</summary>
+        /// <summary>Write-scope apply policy.</summary>
         public enum ApplyMode
         {
-            /// <summary>Dispose 시 스케줄러에 넣고 배리어에서 일괄 적용.</summary>
+            /// <summary>
+            /// On dispose, enqueue into the scheduler and apply at the frame barrier.
+            /// </summary>
             Schedule = 0,
 
-            /// <summary>Dispose 시 즉시 적용(메인 스레드 권장).</summary>
+            /// <summary>
+            /// On dispose, apply immediately (recommended from the main thread).
+            /// </summary>
             Immediate = 1,
         }
 
         /// <summary>
-        /// 멀티스레드 안전 커맨드 버퍼.
-        /// EndWrite(cb) 또는 Schedule(cb)로 적용 가능.
-        /// using (BeginWrite(...)) 로 자동 적용 가능.
+        /// Thread-safe command buffer.
+        /// Can be applied via EndWrite(cb) or Schedule(cb).
+        /// Also supports the using pattern with BeginWrite(...).
         /// </summary>
         public sealed class CommandBuffer : IJob, System.IDisposable
         {
             internal readonly ConcurrentQueue<IOp> q = new();
 
-            // BeginWrite에서 바인딩된다
+            // Bound in BeginWrite
             private World? _boundWorld;
             private ApplyMode _mode;
             private bool _disposed;
+            public World? WorldRef => _boundWorld;
 
             internal void Bind(World w, ApplyMode mode)
             {
@@ -49,22 +66,22 @@ namespace ZenECS.Core
                 if (_disposed) return;
                 _disposed = true;
 
-                // using(BeginWrite)로 생성된 버퍼만 자동 적용
+                // Auto-apply only for buffers created by using (BeginWrite)
                 var w = _boundWorld;
                 _boundWorld = null;
 
                 if (w == null) return;
 
                 if (_mode == ApplyMode.Immediate)
-                    w.EndWrite(this); // 즉시 적용
+                    w.EndWrite(this); // Apply immediately
                 else
-                    w.Schedule(this); // 배리어에서 적용
+                    w.Schedule(this); // Apply at the barrier
             }
 
             internal interface IOp
             {
                 void Apply(World w);
-            } // 죽은 엔티티 방어는 각 Op 내부에서 수행
+            } // Guarding dead entities is handled inside each Op.
 
             sealed class AddOp<T> : IOp where T : struct
             {
@@ -103,7 +120,7 @@ namespace ZenECS.Core
                         /* w.Trace($"Skip Replace<{typeof(T).Name}>: {e} dead"); */
                         return;
                     }
-                    // World.Replace 경로로 훅/검증/이벤트 일치
+                    // Route through World.Replace to align with hooks/validation/events.
                     w.Replace(e, in v);
                     Events.ComponentEvents.RaiseChanged(w, e, typeof(T));
                 }
@@ -141,13 +158,13 @@ namespace ZenECS.Core
                 }
             }
 
-            // enqueue
+            // Enqueue operations
             public void Add<T>(Entity e, in T v) where T : struct => q.Enqueue(new AddOp<T>(e, v));
             public void Replace<T>(Entity e, in T v) where T : struct => q.Enqueue(new ReplaceOp<T>(e, v));
             public void Remove<T>(Entity e) where T : struct => q.Enqueue(new RemoveOp<T>(e));
             public void Destroy(Entity e) => q.Enqueue(new DestroyOp(e));
 
-            // IJob: 스케줄러와 통합
+            // IJob: integration with the world's scheduler
             void World.IJob.Execute(World w)
             {
                 while (q.TryDequeue(out var op)) op.Apply(w);
@@ -155,9 +172,11 @@ namespace ZenECS.Core
         }
 
         /// <summary>
-        /// 커맨드 버퍼 쓰기 시작. using 패턴 지원:
-        /// using (var cb = world.BeginWrite()) { ... } // Dispose 시 Schedule
-        /// using (var cb = world.BeginWrite(ApplyMode.Immediate)) { ... } // Dispose 시 즉시 적용
+        /// Begins a command-buffer write scope. Supports the using pattern:
+        /// <code>
+        /// using (var cb = world.BeginWrite()) { ... }                    // Applies on Dispose via Schedule
+        /// using (var cb = world.BeginWrite(ApplyMode.Immediate)) { ... } // Applies on Dispose immediately
+        /// </code>
         /// </summary>
         public CommandBuffer BeginWrite(ApplyMode mode = ApplyMode.Schedule)
         {
@@ -166,7 +185,9 @@ namespace ZenECS.Core
             return cb;
         }
 
-        /// <summary>다른 스레드에서 쌓인 명령을 즉시 적용(메인 스레드 호출 권장).</summary>
+        /// <summary>
+        /// Applies commands collected on another thread immediately (recommended to call on the main thread).
+        /// </summary>
         public int EndWrite(CommandBuffer cb)
         {
             if (cb == null) return 0;
@@ -179,7 +200,9 @@ namespace ZenECS.Core
             return n;
         }
 
-        /// <summary>커맨드 버퍼를 스케줄러에 넣고 프레임 경계에서 적용.</summary>
+        /// <summary>
+        /// Enqueues the command buffer into the scheduler to be applied at the next frame barrier.
+        /// </summary>
         public void Schedule(CommandBuffer? cb)
         {
             if (cb != null)
@@ -188,13 +211,13 @@ namespace ZenECS.Core
             }
         }
 
-        // 예: 프레임-로컬/지연 커맨드 버퍼가 있다면 모두 초기화
+        // Example: if you maintain frame-local/deferred command buffers, clear them here.
         private void ClearAllCommandBuffers()
         {
             ClearAllScheduledJobs();
         }
 
-        // 선택: Reset 시점에 커맨드 플러시/드롭 정책을 달리하고 싶으면 여기서 처리
+        // Optional: customize flush/drop policy on Reset; here we flush scheduled jobs when capacity will be rebuilt.
         partial void OnBeforeWorldReset(bool keepCapacity)
         {
             if (!keepCapacity) RunScheduledJobs();

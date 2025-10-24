@@ -1,165 +1,80 @@
-﻿#nullable enable
-using System;
-using System.Collections.Generic;
-using System.Runtime.CompilerServices;
-using ZenECS.Core;
+﻿// ──────────────────────────────────────────────────────────────────────────────
+// ZenECS Core
+// File: EcsRuntimeDirectory.cs
+// Purpose: Global discovery surface for optional runtime services (registries, gates, etc.).
+// Key concepts:
+//   • Thin static directory to attach/detach services at startup.
+//   • Keeps core assemblies decoupled from optional infrastructure packages.
+//   • Safe no-op defaults when a service was not attached.
+// 
+// Copyright (c) 2025 Pippapips Limited
+// License: MIT
+// SPDX-License-Identifier: MIT
+// ──────────────────────────────────────────────────────────────────────────────
+#nullable enable
 using ZenECS.Core.Binding;
-using ZenECS.Core.Systems;
+using ZenECS.Core.Binding.Util;
 
 namespace ZenECS.Core.Infrastructure
 {
     /// <summary>
-    /// Holds runtime references to the active World and Systems and exposes simple discovery utilities.
-    /// Thread-safe; all mutations are guarded by a single lock and events are raised outside the lock.
+    /// Static directory used to attach optional runtime services (registries/gates) at startup.
+    /// Consumers query this directory instead of referencing concrete types directly.
     /// </summary>
     public static class EcsRuntimeDirectory
     {
-        private static readonly object _gate = new object();
+        // ---- Binding & Sync registries -------------------------------------------------
 
-        // Backing fields
-        private static World? _world;
-        private static ISystem[]? _systems;           // store as arrays for minimal overhead
-        private static ISystem[]? _runningSystems;
-        private static IViewBinderRegistry? _syncTargetRegistry;
-        private static IComponentBinderRegistry? _syncHandlerRegistry;
+        /// <summary>Component → binder registry (maybe <c>null</c> if not attached).</summary>
+        public static IComponentBinderRegistry? ComponentBinderRegistry { get; private set; }
 
-        /// <summary>Raised whenever World/Systems set changes (Attach/Detach).</summary>
-        public static event Action? Changed;
+        /// <summary>Entity → view binder registry (maybe <c>null</c> if not attached).</summary>
+        public static IViewBinderRegistry? ViewBinderRegistry { get; private set; }
 
-        /// <summary>Raised when SyncTargetRegistry is attached.</summary>
-        public static event Action? ChangedSyncTargetRegistry;
+        /// <summary>Main-thread marshaling gate (maybe <c>null</c> if not attached).</summary>
+        public static IMainThreadGate? MainThreadGate { get; private set; }
 
-        /// <summary>Raised when SyncHandlerRegistry is attached.</summary>
-        public static event Action? ChangedSyncHandlerRegistry;
+        // ---- Attach helpers ------------------------------------------------------------
 
-        // Public snapshots (never return null)
-        public static World? World
+        /// <summary>Attaches a component binder registry for global discovery.</summary>
+        public static void AttachComponentBinderRegistry(IComponentBinderRegistry reg) => ComponentBinderRegistry = reg;
+
+        /// <summary>Attaches a sync-target (view binder) registry for global discovery.</summary>
+        public static void AttachViewBinderRegistry(IViewBinderRegistry reg) => ViewBinderRegistry = reg;
+
+        /// <summary>Attaches the main-thread gate implementation.</summary>
+        public static void AttachMainThreadGate(IMainThreadGate gate) => MainThreadGate = gate;
+
+        // ---- Detach helpers ------------------------------------------------------------
+
+        /// <summary>Detaches the currently attached component binder registry.</summary>
+        public static void DetachComponentBinderRegistry(IComponentBinderRegistry reg)
         {
-            get { lock (_gate) return _world; }
+            if (ComponentBinderRegistry == reg) ComponentBinderRegistry = null;
         }
 
-        public static IReadOnlyList<ISystem> Systems
+        /// <summary>Detaches the currently attached view binder registry.</summary>
+        public static void DetachViewBinderRegistry(IViewBinderRegistry reg)
         {
-            get { lock (_gate) return _systems ?? Array.Empty<ISystem>(); }
+            if (ViewBinderRegistry == reg) ViewBinderRegistry = null;
         }
 
-        public static IReadOnlyList<ISystem> RunningSystems
+        /// <summary>Detaches the current main-thread gate if the instance matches.</summary>
+        public static void DetachMainThreadGate(IMainThreadGate gate)
         {
-            get { lock (_gate) return _runningSystems ?? Array.Empty<ISystem>(); }
+            if (MainThreadGate == gate) MainThreadGate = null;
         }
 
-        public static IViewBinderRegistry? SyncTargetRegistry
-        {
-            get { lock (_gate) return _syncTargetRegistry; }
-        }
-
-        public static IComponentBinderRegistry? SyncHandlerRegistry
-        {
-            get { lock (_gate) return _syncHandlerRegistry; }
-        }
+        // ---- Reset --------------------------------------------------------------------
 
         /// <summary>
-        /// Attach the active World and its systems. Calculates RunningSystems fast without LINQ.
+        /// Clears all attached services. Call during full shutdown/reset to avoid stale references.
         /// </summary>
-        public static void Attach(World world, IReadOnlyList<ISystem> systems)
+        public static void Reset()
         {
-            if (world == null) throw new ArgumentNullException(nameof(world));
-            if (systems == null) throw new ArgumentNullException(nameof(systems));
-
-            Action? changed;
-            lock (_gate)
-            {
-                _world   = world;
-                _systems = CopyToArray(systems);
-                _runningSystems = ExtractRunningSystems(_systems);
-                changed = Changed;
-            }
-            changed?.Invoke();
-        }
-
-        /// <summary>
-        /// Attach the SyncTarget registry (typically provided by the Unity Adapter).
-        /// </summary>
-        public static void AttachSyncTargetRegistry(IViewBinderRegistry syncTargetRegistry)
-        {
-            Action? changedEvt;
-            lock (_gate)
-            {
-                _syncTargetRegistry = syncTargetRegistry;
-                changedEvt = ChangedSyncTargetRegistry;
-            }
-            changedEvt?.Invoke();
-        }
-
-        /// <summary>
-        /// Attach the SyncHandler registry (typically provided by the Unity Adapter).
-        /// </summary>
-        public static void AttachComponentBinderRegistry(IComponentBinderRegistry syncHandlerRegistry)
-        {
-            Action? changedEvt;
-            lock (_gate)
-            {
-                _syncHandlerRegistry = syncHandlerRegistry;
-                changedEvt = ChangedSyncHandlerRegistry;
-            }
-            changedEvt?.Invoke();
-        }
-
-        /// <summary>
-        /// Clear all references. Safe to call multiple times.
-        /// </summary>
-        public static void Detach()
-        {
-            Action? changed;
-            lock (_gate)
-            {
-                _world = null;
-                _systems = null;
-                _runningSystems = null;
-                _syncTargetRegistry = null;
-                _syncHandlerRegistry = null;
-                changed = Changed;
-            }
-            changed?.Invoke();
-        }
-
-        // -------- helpers --------
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static ISystem[] CopyToArray(IReadOnlyList<ISystem> src)
-        {
-            var len = src.Count;
-            if (len == 0) return Array.Empty<ISystem>();
-            var dst = new ISystem[len];
-            for (int i = 0; i < len; i++) dst[i] = src[i];
-            return dst;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static ISystem[] ExtractRunningSystems(ISystem[]? all)
-        {
-            if (all == null || all.Length == 0) return Array.Empty<ISystem>();
-
-            // Count first to allocate once.
-            int count = 0;
-            for (int i = 0; i < all.Length; i++)
-            {
-                if (IsRunningKind(all[i])) count++;
-            }
-
-            if (count == 0) return Array.Empty<ISystem>();
-
-            var dst = new ISystem[count];
-            var j = 0;
-            foreach (var s in all)
-            {
-                if (IsRunningKind(s)) dst[j++] = s;
-            }
-            return dst;
-
-            [MethodImpl(MethodImplOptions.AggressiveInlining)]
-            static bool IsRunningKind(ISystem s)
-                => s is IVariableRunSystem or IFixedRunSystem or IPresentationSystem;
+            ComponentBinderRegistry = null;
+            ViewBinderRegistry = null;
+            MainThreadGate = null;
         }
     }
 }

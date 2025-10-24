@@ -1,4 +1,17 @@
-﻿#nullable enable
+﻿// ──────────────────────────────────────────────────────────────────────────────
+// ZenECS Core — World subsystem
+// File: World.Query.Filter.cs
+// Purpose: Composable filter definitions for queries (include/exclude component sets).
+// Key concepts:
+//   • WithAny / WithoutAny fluent API for logical OR groups.
+//   • Used by Query to test entity membership efficiently.
+//   • Cached per filter key for reuse.
+//
+// Copyright (c) 2025 Pippapips Limited
+// License: MIT (see LICENSE or https://opensource.org/licenses/MIT)
+// SPDX-License-Identifier: MIT
+// ──────────────────────────────────────────────────────────────────────────────
+#nullable enable
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
@@ -9,24 +22,29 @@ namespace ZenECS.Core
 {
     public sealed partial class World
     {
-        // 필터 조합
-        // var f = World.Filter.New
-        //     .With<Owner>()
-        //     .Without<DeadTag>()
-        //     .WithAny(typeof(Burning), typeof(Poisoned))   // 둘 중 하나 이상이면 OK
-        //     .WithoutAny(typeof(Shielded), typeof(Invuln)) // 둘 중 하나라도 있으면 제외
-        //     .Build();
-        //
-        // foreach (var e in world.Query<Position, Velocity>(f))
-        // {
-        //     ref var p = ref world.RefExisting<Position>(e);
-        //     var  v    =  world.RefExisting<Velocity>(e);
-        //     p.Value += v.Value * world.DeltaTime;
-        // }
+        /*
+         Example:
+         var f = World.Filter.New
+             .With<Owner>()
+             .Without<DeadTag>()
+             .WithAny(typeof(Burning), typeof(Poisoned))   // Match if any of these exist
+             .WithoutAny(typeof(Shielded), typeof(Invuln)) // Exclude if any of these exist
+             .Build();
 
+         foreach (var e in world.Query<Position, Velocity>(f))
+         {
+             ref var p = ref world.RefExisting<Position>(e);
+             var  v    =  world.RefExisting<Velocity>(e);
+             p.Value += v.Value * world.DeltaTime;
+         }
+        */
+
+        /// <summary>
+        /// Clears the cached filter and mask data.
+        /// </summary>
         private void ResetQueryCaches()
         {
-            filterCache?.Clear(); // 필터/마스크 캐시
+            filterCache?.Clear();
         }
 
         // ---------- Filter Key / Cache ----------
@@ -35,20 +53,22 @@ namespace ZenECS.Core
             public readonly ulong Hash;
             public FilterKey(ulong hash) { Hash = hash; }
 
-            public bool Equals(FilterKey other) { return Hash == other.Hash; }
-            public override bool Equals(object? obj) { return obj is FilterKey fk && fk.Hash == Hash; }
-            public override int GetHashCode() { return Hash.GetHashCode(); }
+            public bool Equals(FilterKey other) => Hash == other.Hash;
+            public override bool Equals(object? obj) => obj is FilterKey fk && fk.Hash == Hash;
+            public override int GetHashCode() => Hash.GetHashCode();
         }
 
         internal sealed class ResolvedFilter
         {
             public IComponentPool[] withAll = Array.Empty<IComponentPool>();
             public IComponentPool[] withoutAll = Array.Empty<IComponentPool>();
-            public IComponentPool[][] withAny = Array.Empty<IComponentPool[]>(); // buckets
+            public IComponentPool[][] withAny = Array.Empty<IComponentPool[]>(); 
             public IComponentPool[][] withoutAny = Array.Empty<IComponentPool[]>();
         }
 
-        // Filter 캐싱 (풀/버킷 키 기반)
+        /// <summary>
+        /// Filter cache based on pool/bucket key.
+        /// </summary>
         private readonly ConcurrentDictionary<FilterKey, ResolvedFilter> filterCache = new();
 
         // ---------- Filter DSL ----------
@@ -56,8 +76,8 @@ namespace ZenECS.Core
         {
             internal readonly Type[] withAll;
             internal readonly Type[] withoutAll;
-            internal readonly Type[][] withAny;    // 그룹별 OR
-            internal readonly Type[][] withoutAny; // 그룹별 OR
+            internal readonly Type[][] withAny;
+            internal readonly Type[][] withoutAny;
 
             internal Filter(Type[] wa, Type[] wo, Type[][] wan, Type[][] won)
             {
@@ -69,19 +89,26 @@ namespace ZenECS.Core
 
             public static Builder New => default;
 
+            /// <summary>
+            /// Builder used to fluently compose filters.
+            /// </summary>
             public readonly struct Builder
             {
-                private readonly List<Type> wa;        // WithAll
-                private readonly List<Type> wo;        // WithoutAll
-                private readonly List<List<Type>> wan; // WithAny buckets
-                private readonly List<List<Type>> won; // WithoutAny buckets
+                private readonly List<Type> wa;
+                private readonly List<Type> wo;
+                private readonly List<List<Type>> wan;
+                private readonly List<List<Type>> won;
 
                 public Builder With<T>() where T : struct => new(Append(wa, typeof(T)), wo, wan, won);
                 public Builder Without<T>() where T : struct => new(wa, Append(wo, typeof(T)), wan, won);
 
-                /// <summary>그룹 OR: 인자로 전달한 타입 중 하나라도 만족하면 통과</summary>
+                /// <summary>
+                /// Logical OR group: passes if at least one of the specified types is present.
+                /// </summary>
                 public Builder WithAny(params Type[] types) => new(wa, wo, AppendBucket(wan, types), won);
-                /// <summary>그룹 OR: 인자 중 하나라도 존재하면 탈락</summary>
+                /// <summary>
+                /// Logical OR group: fails if any of the specified types are present.
+                /// </summary>
                 public Builder WithoutAny(params Type[] types) => new(wa, wo, wan, AppendBucket(won, types));
 
                 public Filter Build()
@@ -93,7 +120,6 @@ namespace ZenECS.Core
                         ToJagged(won));
                 }
 
-                // ctors
                 private Builder(List<Type> wa, List<Type> wo, List<List<Type>> wan, List<List<Type>> won)
                 {
                     this.wa = wa;
@@ -102,7 +128,6 @@ namespace ZenECS.Core
                     this.won = won;
                 }
 
-                // helpers
                 private static List<Type> Append(List<Type> list, Type t)
                 {
                     var l = list ?? new List<Type>(4);
@@ -129,7 +154,9 @@ namespace ZenECS.Core
             }
         }
 
-        // 해시 키 생성(풀/버킷 키 기반) — 순서 독립
+        /// <summary>
+        /// Generates a hash key for the given filter (order-independent).
+        /// </summary>
         internal static FilterKey MakeKey(in Filter f)
         {
             unchecked
@@ -143,7 +170,6 @@ namespace ZenECS.Core
                 void MixTypeSet(Type[] arr)
                 {
                     if (arr == null) return;
-                    // 순서 독립 위해 정렬된 해시 누적
                     foreach (var t in arr.OrderBy(x => x.FullName)) Mix(t);
                     h ^= 0x9E3779B185EBCA87ul;
                 }
@@ -165,7 +191,9 @@ namespace ZenECS.Core
             }
         }
 
-        // 필터 풀 배열로 해석 + 캐싱
+        /// <summary>
+        /// Resolves a filter into actual pool arrays and caches it.
+        /// </summary>
         internal ResolvedFilter ResolveFilter(in Filter f)
         {
             var key = MakeKey(f);
@@ -177,8 +205,8 @@ namespace ZenECS.Core
                 var arr = new IComponentPool[types.Length];
                 for (int i = 0; i < types.Length; i++)
                 {
-                    pools.TryGetValue(types[i], out var p);
-                    if (p == null) return null; // WithAll이지만 풀 없음 → 공집합
+                    _pools.TryGetValue(types[i], out var p);
+                    if (p == null) return null;
                     arr[i] = p;
                 }
                 return arr;
@@ -193,8 +221,8 @@ namespace ZenECS.Core
                     var ps = new IComponentPool[tset.Length];
                     for (int j = 0; j < tset.Length; j++)
                     {
-                        pools.TryGetValue(tset[j], out var p);
-                        if (p == null) return null; // WithAll이지만 풀 없음 → 공집합
+                        _pools.TryGetValue(tset[j], out var p);
+                        if (p == null) return null;
                         ps[j] = p;
                     }
                     arr[i] = ps;
@@ -213,28 +241,30 @@ namespace ZenECS.Core
             {
                 rf.withAll = Array.Empty<IComponentPool>();
                 rf.withAny = Array.Empty<IComponentPool[]>();
-            } // 공집합
+            }
 
             filterCache[key] = rf;
             return rf;
         }
 
-        // id가 필터 충족하는지 검사
+        /// <summary>
+        /// Determines whether the entity with the given id satisfies the filter conditions.
+        /// </summary>
         internal static bool MeetsFilter(int id, ResolvedFilter r)
         {
-            // WithAll: 모두 있어야
+            // WithAll: must contain all
             var wa = r.withAll;
             for (int i = 0; i < wa.Length; i++)
                 if (!wa[i].Has(id))
                     return false;
 
-            // WithoutAll: 하나라도 있으면 탈락
+            // WithoutAll: must not contain any
             var wo = r.withoutAll;
             for (int i = 0; i < wo.Length; i++)
                 if (wo[i].Has(id))
                     return false;
 
-            // WithAny: 각 버킷마다 "적어도 하나 존재"해야 통과
+            // WithAny: must contain at least one from each bucket
             var wan = r.withAny;
             for (int b = 0; b < wan.Length; b++)
             {
@@ -249,7 +279,7 @@ namespace ZenECS.Core
                 if (!any) return false;
             }
 
-            // WithoutAny: 각 버킷에서 "하나라도 존재하면" 탈락
+            // WithoutAny: fails if any from each bucket exist
             var won = r.withoutAny;
             for (int b = 0; b < won.Length; b++)
             {

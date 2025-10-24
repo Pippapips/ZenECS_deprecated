@@ -1,3 +1,16 @@
+// ──────────────────────────────────────────────────────────────────────────────
+// ZenECS Core
+// File: BinderFastInvokerCache.cs
+// Purpose: Builds zero-boxing Apply delegates using Expression trees and generic TryGet<T>.
+// Key concepts:
+//   • Caches per-component (Type) compiled delegates: (w,e,v,binder) → binder.Apply(ref T).
+//   • Requires World.TryGet<T>(Entity, out T) or World.TryGetComponentInternal<T>(...) to exist.
+//   • Falls back to BinderInvokerCache when not available.
+// 
+// Copyright (c) 2025 Pippapips Limited
+// License: MIT (https://opensource.org/licenses/MIT)
+// SPDX-License-Identifier: MIT
+// ──────────────────────────────────────────────────────────────────────────────
 #nullable enable
 using System;
 using System.Collections.Concurrent;
@@ -21,9 +34,7 @@ namespace ZenECS.Core.Binding.Util
 
             var genericTryGetDef =
                 typeof(World)
-                    .GetMethods(System.Reflection.BindingFlags.Instance |
-                                System.Reflection.BindingFlags.Public |
-                                System.Reflection.BindingFlags.NonPublic)
+                    .GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
                     .FirstOrDefault(m =>
                         (m.Name == "TryGet" || m.Name == "TryGetComponentInternal") &&
                         m.IsGenericMethodDefinition &&
@@ -31,8 +42,8 @@ namespace ZenECS.Core.Binding.Util
                         m.GetParameters().Length == 2 &&
                         m.GetParameters()[0].ParameterType == typeof(Entity) &&
                         m.GetParameters()[1].ParameterType.IsByRef)
-                ?? throw new InvalidOperationException("World.TryGet<T>(...) 또는 World.TryGetComponentInternal<T>(...)가 필요합니다.");
-            var tryGet = genericTryGetDef.MakeGenericMethod(t); // ← 닫힌 메서드로 변환            
+                ?? throw new InvalidOperationException("World.TryGet<T>(...) or World.TryGetComponentInternal<T>(...) is required.");
+            var tryGet = genericTryGetDef.MakeGenericMethod(t);
 
             var typed = Expression.Convert(b, typeof(IComponentBinder<>).MakeGenericType(t));
             var apply = typed.Type.GetMethod("Apply", new[] { typeof(World), typeof(Entity), t.MakeByRefType(), typeof(IViewBinder) })!;

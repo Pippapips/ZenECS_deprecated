@@ -1,3 +1,15 @@
+// ──────────────────────────────────────────────────────────────────────────────
+// ZenECS Core
+// File: BinderInvokerCache.cs
+// Purpose: Builds boxed Apply/Bind/Unbind delegates via Expression trees.
+// Key concepts:
+//   • Used when zero-boxing path is unavailable or not required.
+//   • Caches delegates per component type to avoid repeated reflection.
+// 
+// Copyright (c) 2025 Pippapips Limited
+// License: MIT (https://opensource.org/licenses/MIT)
+// SPDX-License-Identifier: MIT
+// ──────────────────────────────────────────────────────────────────────────────
 #nullable enable
 using System;
 using System.Collections.Concurrent;

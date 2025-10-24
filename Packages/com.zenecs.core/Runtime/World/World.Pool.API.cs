@@ -1,4 +1,16 @@
-﻿#nullable enable
+﻿﻿// ──────────────────────────────────────────────────────────────────────────────
+// ZenECS Core — World subsystem
+// File: World.Pool.API.cs
+// Purpose: Public-facing API variants around pool management and diagnostics.
+// Key concepts:
+//   • Pool lookup and safe creation surface.
+//   • Optional diagnostics/metrics entry points.
+//
+// Copyright (c) 2025 Pippapips Limited
+// License: MIT (see LICENSE or https://opensource.org/licenses/MIT)
+// SPDX-License-Identifier: MIT
+// ──────────────────────────────────────────────────────────────────────────────
+#nullable enable
 using System;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
@@ -9,34 +21,63 @@ namespace ZenECS.Core
 {
     public partial class World
     {
+        /// <summary>
+        /// Enumerates all component pools currently registered in this world.
+        /// </summary>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal IEnumerable<KeyValuePair<Type, IComponentPool>> GetAllPools() => pools;
+        internal IEnumerable<KeyValuePair<Type, IComponentPool>> GetAllPools() => _pools;
 
+        /// <summary>
+        /// Retrieves a component pool for <typeparamref name="T"/>.
+        /// If the pool does not exist, it is created and registered automatically.
+        /// </summary>
+        /// <typeparam name="T">Component struct type.</typeparam>
+        /// <returns>The corresponding <see cref="IComponentPool"/> for <typeparamref name="T"/>.</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private IComponentPool GetPool<T>() where T : struct
         {
             var t = typeof(T);
-            if (!pools.TryGetValue(t, out var pool))
+            if (!_pools.TryGetValue(t, out var pool))
             {
                 pool = new ComponentPool<T>();
-                pools.Add(t, pool);
+                _pools.Add(t, pool);
             }
 
             return pool;
         }
 
+        /// <summary>
+        /// Attempts to get a component pool for <typeparamref name="T"/>.
+        /// Returns <c>null</c> if the pool does not exist.
+        /// </summary>
+        /// <typeparam name="T">Component struct type.</typeparam>
+        /// <returns>The pool if found; otherwise <c>null</c>.</returns>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal ComponentPool<T>? TryGetPoolInternal<T>() where T : struct
-            => pools.TryGetValue(typeof(T), out var p) ? (ComponentPool<T>)p : null;
+            => _pools.TryGetValue(typeof(T), out var p) ? (ComponentPool<T>)p : null;
 
+        /// <summary>
+        /// Retrieves or creates a component pool by <see cref="Type"/> at runtime.
+        /// </summary>
+        /// <param name="t">The component type.</param>
+        /// <returns>The corresponding <see cref="IComponentPool"/> instance.</returns>
+        /// <remarks>
+        /// - Uses a pre-built thread-safe factory delegate from <see cref="World.GetOrBuildPoolFactory"/>.<br/>
+        /// - Ensures the pool is initialized with a minimal capacity (0).<br/>
+        /// - Safe for AOT/IL2CPP environments and concurrent access.
+        /// </remarks>
         private IComponentPool GetOrCreatePoolByType(Type t)
         {
-            if (!pools.TryGetValue(t, out var pool))
+            if (!_pools.TryGetValue(t, out var pool))
             {
-                var factory = GetOrBuildPoolFactory(t); // ✅ 안전 팩토리
+                // ✅ Safe factory creation through GetOrBuildPoolFactory
+                var factory = GetOrBuildPoolFactory(t);
                 pool = factory();
-                pool.EnsureCapacity(0); // 안전한 최소 확보
-                pools.Add(t, pool);
+
+                // Ensure minimal capacity so the pool is valid for immediate operations.
+                pool.EnsureCapacity(0);
+
+                _pools.Add(t, pool);
             }
 
             return pool;

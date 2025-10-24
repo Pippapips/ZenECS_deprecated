@@ -1,3 +1,16 @@
+// ──────────────────────────────────────────────────────────────────────────────
+// ZenECS Core
+// File: ComponentBatchDispatchSystem.cs
+// Purpose: Dequeues batched component-change records and invokes ViewBindingSystem callbacks.
+// Key concepts:
+//   • Subscribes to IComponentChangeFeed and buffers records on a local queue.
+//   • Uses GenericInvokerCache to call generic handlers without repeated reflection.
+//   • Presentation-stage system; ordered after ComponentBindingHubSystem, before ViewBindingSystem.
+// 
+// Copyright (c) 2025 Pippapips Limited
+// License: MIT (https://opensource.org/licenses/MIT)
+// SPDX-License-Identifier: MIT
+// ──────────────────────────────────────────────────────────────────────────────
 #nullable enable
 using System;
 using System.Collections.Generic;
@@ -9,7 +22,7 @@ namespace ZenECS.Core.Binding.Systems
     [PresentationGroup]
     [OrderAfter(typeof(ComponentBindingHubSystem))]
     [OrderBefore(typeof(ViewBindingSystem))]
-    public sealed class ComponentBatchDispatchSystem : ISystemLifecycle, IPresentationSystem
+    internal sealed class ComponentBatchDispatchSystem : ISystemLifecycle, IPresentationSystem
     {
         private IDisposable? _subscriptionForFeed;
 
@@ -42,7 +55,12 @@ namespace ZenECS.Core.Binding.Systems
                 var rec = _queue.Dequeue();
                 var t = rec.ComponentType;
                 if (t is null) continue;
-if ((rec.Mask & ComponentChangeMask.Removed) != 0)
+
+                // ✅ Notify the ViewBindingSystem that this entity was processed via batch dispatch.
+                _host.NotifyChangedViaFeed(rec.Entity);
+                
+                // Removal: call OnComponentRemoved<T>(...)
+                if ((rec.Mask & ComponentChangeMask.Removed) != 0)
                 {
                     GenericInvokerCache.Invoke(
                         target: _host,
@@ -52,8 +70,10 @@ if ((rec.Mask & ComponentChangeMask.Removed) != 0)
                     continue;
                 }
 
+                // Read current value if still present
                 if (!TryGetCurrentValue(w, rec.Entity, t, out var boxed)) continue;
 
+                // Added: call OnComponentAdded<T>(..., in T)
                 if ((rec.Mask & ComponentChangeMask.Added) != 0)
                 {
                     GenericInvokerCache.Invoke(
@@ -63,6 +83,7 @@ if ((rec.Mask & ComponentChangeMask.Removed) != 0)
                         w, rec.Entity, boxed);
                 }
 
+                // Changed: call OnComponentChanged<T>(..., in T)
                 if ((rec.Mask & ComponentChangeMask.Changed) != 0)
                 {
                     GenericInvokerCache.Invoke(
@@ -74,22 +95,15 @@ if ((rec.Mask & ComponentChangeMask.Removed) != 0)
             }
         }
 
-        public void Run(World w, float alpha = 1)
-        {
-            Run(w, alpha);
-        }
+        // Compatibility overload (alpha unused by this system)
+        public void Run(World w, float alpha = 1) { Run(w); }
 
         private void OnBatch(IReadOnlyList<ComponentChangeRecord> recs)
         {
-            foreach (var t in recs)
-            {
-                _queue.Enqueue(t);
-            }
+            foreach (var t in recs) _queue.Enqueue(t);
         }
 
-        private static bool TryGetCurrentValue(World w, Entity e, System.Type t, out object? value)
-        {
-            return w.TryGetBoxed(e, t, out value);
-        }
+        private static bool TryGetCurrentValue(World w, Entity e, Type t, out object? value)
+            => w.TryGetBoxed(e, t, out value);
     }
 }

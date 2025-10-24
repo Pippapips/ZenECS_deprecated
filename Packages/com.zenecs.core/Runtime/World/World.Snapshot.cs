@@ -1,10 +1,21 @@
-﻿#nullable enable
+﻿// ──────────────────────────────────────────────────────────────────────────────
+// ZenECS Core — World subsystem
+// File: World.Snapshot.cs
+// Purpose: Binary snapshot save/load for world metadata and component pools.
+// Key concepts:
+//   • Signature 'ZENSNAP1' (little-endian, canonical format).
+//   • Captures alive bitset, generations, free IDs, and pool contents.
+//   • Requires registered IComponentFormatter implementations per component.
+//
+// Copyright (c) 2025 Pippapips Limited
+// License: MIT (see LICENSE or https://opensource.org/licenses/MIT)
+// SPDX-License-Identifier: MIT
+// ──────────────────────────────────────────────────────────────────────────────
+#nullable enable
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
-using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
 using System.Text;
 using ZenECS.Core.Internal;
 using ZenECS.Core.Serialization;
@@ -13,13 +24,15 @@ namespace ZenECS.Core
 {
     public sealed partial class World
     {
-        /// <summary>World meta snapshot (without pool values).</summary>
+        /// <summary>
+        /// Represents world metadata without component pool data.
+        /// </summary>
         public readonly struct WorldSnapshot
         {
             public readonly int NextId;
-            public readonly int[] Generation; // per-slot generation
-            public readonly int[] FreeIds;    // free stack snapshot
-            public readonly byte[] AliveBits; // BitSet serialized
+            public readonly int[] Generation;
+            public readonly int[] FreeIds;
+            public readonly byte[] AliveBits;
 
             public WorldSnapshot(int nextId, int[] gen, int[] freeIds, byte[] aliveBits)
             {
@@ -31,51 +44,53 @@ namespace ZenECS.Core
         }
 
         // =========================
-        // PUBLIC: Full Binary (ZENSNAP1, Little-Endian canonical)
+        // Public Snapshot I/O (binary)
         // =========================
 
+        /// <summary>
+        /// Saves the full world state as a portable binary snapshot ("ZENSNAP1").
+        /// </summary>
         public void SaveFullSnapshotBinary(Stream s)
         {
             if (s == null || !s.CanWrite) throw new ArgumentException("Stream not writable", nameof(s));
             using var bw = new BinaryWriter(s, Encoding.UTF8, leaveOpen: true);
 
-            // Magic only (BinaryWriter/Reader is little-endian by spec)
+            // Magic header (BinaryWriter uses little-endian)
             bw.Write(new byte[] { (byte)'Z', (byte)'E', (byte)'N', (byte)'S', (byte)'N', (byte)'A', (byte)'P', (byte)'1' });
 
-            // 1) world meta
             SaveWorldMetaBinary(bw);
-
-            // 2) component pools (formatter-required)
             SaveAllComponentPoolsBinary(bw);
         }
 
+        /// <summary>
+        /// Loads a full binary snapshot ("ZENSNAP1") into the world.
+        /// </summary>
         public void LoadFullSnapshotBinary(Stream s)
         {
             if (s == null || !s.CanRead) throw new ArgumentException("Stream not readable", nameof(s));
             using var br = new BinaryReader(s, Encoding.UTF8, leaveOpen: true);
 
-            // Magic
+            // Verify magic header
             Span<byte> magic = stackalloc byte[8];
             int read = br.Read(magic);
             if (read != 8 || magic[0] != (byte)'Z' || magic[1] != (byte)'E' || magic[2] != (byte)'N' ||
-                magic[3] != (byte)'S' || magic[4] != (byte)'N' || magic[5] != (byte)'A' || magic[6] != (byte)'P' || magic[7] != (byte)'1')
+                magic[3] != (byte)'S' || magic[4] != (byte)'N' || magic[5] != (byte)'A' ||
+                magic[6] != (byte)'P' || magic[7] != (byte)'1')
                 throw new InvalidOperationException("Invalid full snapshot header");
 
-            // 1) world meta
             LoadWorldMetaBinary(br);
 
-            // reset pools
-            foreach (var kv in pools) kv.Value.ClearAll();
+            // Reset existing pools
+            foreach (var kv in _pools) kv.Value.ClearAll();
 
-            // 2) component pools (formatter-required)
             LoadAllComponentPoolsBinary(br);
 
-            // 3) Post-Load Migrations (월드 전개 이후 후처리)
-            ZenECS.Core.Serialization.PostLoadMigrationRegistry.RunAll(this);
+            // Run post-load migrations (registered user hooks)
+            PostLoadMigrationRegistry.RunAll(this);
         }
 
         // =========================
-        // META (internal)
+        // Metadata serialization
         // =========================
 
         private void SaveWorldMetaBinary(BinaryWriter bw)
@@ -115,63 +130,56 @@ namespace ZenECS.Core
 
         private WorldSnapshot TakeSnapshot()
         {
-            var genCopy = new int[generation.Length];
-            Array.Copy(generation, genCopy, generation.Length);
+            var genCopy = new int[_generation.Length];
+            Array.Copy(_generation, genCopy, _generation.Length);
 
-            var freeCopy = freeIds.ToArray();
-            var aliveBytes = alive.ToByteArray();
+            var freeCopy = _freeIds.ToArray();
+            var aliveBytes = _alive.ToByteArray();
 
-            return new WorldSnapshot(nextId, genCopy, freeCopy, aliveBytes);
+            return new WorldSnapshot(_nextId, genCopy, freeCopy, aliveBytes);
         }
 
         private void ApplySnapshot(in WorldSnapshot snap)
         {
-            if (snap.Generation.Length > generation.Length)
-                Array.Resize(ref generation, snap.Generation.Length);
+            if (snap.Generation.Length > _generation.Length)
+                Array.Resize(ref _generation, snap.Generation.Length);
 
-            Array.Copy(snap.Generation, generation, snap.Generation.Length);
-            nextId = snap.NextId;
+            Array.Copy(snap.Generation, _generation, snap.Generation.Length);
+            _nextId = snap.NextId;
 
-            alive.FromByteArray(snap.AliveBits);
+            _alive.FromByteArray(snap.AliveBits);
 
-            freeIds.Clear();
+            _freeIds.Clear();
             for (int i = 0; i < snap.FreeIds.Length; i++)
-                freeIds.Push(snap.FreeIds[i]);
+                _freeIds.Push(snap.FreeIds[i]);
         }
 
         // =========================
-        // POOLS (internal) — formatter REQUIRED
+        // Component pool serialization
         // =========================
 
         private void SaveAllComponentPoolsBinary(BinaryWriter bw)
         {
-            var mask = alive;
-            bw.Write(pools.Count); // pool count
+            var mask = _alive;
+            bw.Write(_pools.Count);
 
-            foreach (var (type, pool) in pools)
+            foreach (var (type, pool) in _pools)
             {
-                // Resolve formatter (required)
-                IComponentFormatter? formatter = null;
-                try { formatter = ComponentRegistry.GetFormatter(type); } catch { /* noop */ }
+                IComponentFormatter? formatter = ComponentRegistry.GetFormatter(type);
                 if (formatter == null)
-                    throw new NotSupportedException(
-                        $"No BinaryComponentFormatter registered for '{type.FullName}'. " +
-                        "All components must provide a formatter to save portable binary snapshots.");
+                    throw new NotSupportedException($"No formatter registered for '{type.FullName}'.");
 
-                // Header
                 ComponentRegistry.TryGetId(type, out var stableIdRaw);
                 string stableId = stableIdRaw ?? string.Empty;
                 string typeName = type.AssemblyQualifiedName ?? type.FullName ?? type.Name;
                 bw.Write(stableId);
                 bw.Write(typeName);
 
-                // Alive count
                 int count = 0;
                 foreach (var (id, _) in pool.EnumerateAll())
                     if (mask.Get(id)) count++;
                 bw.Write(count);
 
-                // Entries
                 foreach (var (id, boxed) in pool.EnumerateAll())
                 {
                     if (!mask.Get(id)) continue;
@@ -195,41 +203,26 @@ namespace ZenECS.Core
             int poolCount = br.ReadInt32();
             for (int p = 0; p < poolCount; p++)
             {
-                string stableId = br.ReadString(); // may be empty
-                string typeName  = br.ReadString();
+                string stableId = br.ReadString();
+                string typeName = br.ReadString();
 
-                // Resolve type + formatter (formatter REQUIRED)
                 IComponentFormatter? formatter = null;
                 Type? resolvedType = null;
 
                 if (!string.IsNullOrEmpty(stableId) && ComponentRegistry.TryGetType(stableId, out var t))
                 {
                     resolvedType = t;
-                    try
-                    {
-                        if (t != null)
-                        {
-                            formatter = ComponentRegistry.GetFormatter(t);
-                        }
-                    } catch { /* noop */ }
+                    if (t != null) formatter = ComponentRegistry.GetFormatter(t);
                 }
 
                 if (resolvedType == null)
                     resolvedType = Type.GetType(typeName, throwOnError: true)
-                                   ?? throw new InvalidOperationException($"Type not found: {typeName}");
+                        ?? throw new InvalidOperationException($"Type not found: {typeName}");
 
-                if (formatter == null)
-                {
-                    try { formatter = ComponentRegistry.GetFormatter(resolvedType); }
-                    catch { /* noop */ }
-                }
+                formatter ??= ComponentRegistry.GetFormatter(resolvedType)
+                    ?? throw new NotSupportedException(
+                        $"No formatter registered for '{resolvedType.FullName}'.");
 
-                if (formatter == null)
-                    throw new NotSupportedException(
-                        $"No BinaryComponentFormatter registered for '{resolvedType.FullName}'. " +
-                        "All components must provide a formatter to load portable binary snapshots.");
-
-                // Align to formatter.ComponentType to avoid type-identity mismatch
                 resolvedType = formatter.ComponentType;
                 var pool = GetOrCreatePoolByType(resolvedType);
 

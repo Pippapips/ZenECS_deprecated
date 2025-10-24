@@ -34,7 +34,6 @@ namespace ZenEcsCoreSamples.SystemRunner
         {
             foreach (var e in w.Query<Position>())
             {
-                w.Replace<Position>(e, new Position(15, 20)); // if GuardWritesInPresentation == false then replace to work
                 var p = w.Read<Position>(e);
                 Console.WriteLine($"[Present] e:{e.Id} pos=({p.X:0.00},{p.Y:0.00})");
             }

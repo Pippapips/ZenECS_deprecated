@@ -1,31 +1,79 @@
+// ──────────────────────────────────────────────────────────────────────────────
+// ZenECS Core — World subsystem
+// File: World.Config.cs
+// Purpose: Defines WorldConfig: initial capacities and growth policies for pools and entities.
+// Key concepts:
+//   • InitialEntityCapacity, GrowthPolicy, and related tuning knobs.
+//   • Affects memory layout and resize behavior.
+//
+// Copyright (c) 2025 Pippapips Limited
+// License: MIT (see LICENSE or https://opensource.org/licenses/MIT)
+// SPDX-License-Identifier: MIT
+// ──────────────────────────────────────────────────────────────────────────────
 #nullable enable
 using System;
 
 namespace ZenECS.Core
 {
+    /// <summary>
+    /// Defines how arrays and pools expand when capacity is exceeded.
+    /// </summary>
     public enum GrowthPolicy
     {
-        Doubling, // 확장 시 2배(최소 +256 보장)로 늘려 재할당 횟수 최소화
-        Step      // 확장 시 고정 스텝(GrowthStep)만큼 늘려 메모리 사용 예측 가능
+        /// <summary>
+        /// Doubles the capacity when expanding (guaranteeing at least +256).
+        /// Minimizes reallocation frequency and is suitable for dynamic growth.
+        /// </summary>
+        Doubling,
+
+        /// <summary>
+        /// Expands capacity by a fixed number of slots (GrowthStep) each time.
+        /// Provides more predictable memory usage.
+        /// </summary>
+        Step
     }
 
+    /// <summary>
+    /// Configuration struct for <see cref="World"/>.
+    /// Controls initial memory capacities and growth behavior of entity arrays and component pools.
+    /// </summary>
     public readonly struct WorldConfig
     {
-        /// <summary>초기 엔티티 슬롯 수(Alive/Generation 등 엔티티 관련 배열의 초기 길이).</summary>
+        /// <summary>
+        /// Initial entity slot count (used to size arrays like Alive/Generation at startup).
+        /// </summary>
         public readonly int InitialEntityCapacity;
 
-        /// <summary>풀 딕셔너리의 초기 버킷 수(해시 재해시/확장 빈도를 줄임).</summary>
+        /// <summary>
+        /// Initial bucket count of the component pool dictionary.
+        /// Higher values reduce hash collisions and rehash frequency.
+        /// </summary>
         public readonly int InitialPoolBuckets;
 
-        /// <summary>반납된 엔티티 ID를 담아둘 스택의 초기 용량(재사용 빈도가 높다면 키우기).</summary>
+        /// <summary>
+        /// Initial capacity of the free-id stack used for recycling entity IDs.
+        /// Increase this if entity creation/destruction is frequent.
+        /// </summary>
         public readonly int InitialFreeIdCapacity;
 
-        /// <summary>용량 부족 시 배열 확장 정책(2배 vs 고정 스텝 증설).</summary>
+        /// <summary>
+        /// Array/pool expansion policy when capacity is exceeded (Doubling vs Step).
+        /// </summary>
         public readonly GrowthPolicy GrowthPolicy;
 
-        /// <summary>Step 정책에서 한 번에 늘릴 슬롯 수(예: 256, 512, 1024 등).</summary>
+        /// <summary>
+        /// Number of slots added per expansion when using the Step growth policy (e.g., 256, 512, 1024).
+        /// </summary>
         public readonly int GrowthStep;
 
+        /// <summary>
+        /// Initializes a new <see cref="WorldConfig"/> with specified or default tuning parameters.
+        /// </summary>
+        /// <param name="initialEntityCapacity">Initial entity slot count.</param>
+        /// <param name="initialPoolBuckets">Initial hash bucket count for component pools.</param>
+        /// <param name="initialFreeIdCapacity">Initial capacity for the free-id recycle stack.</param>
+        /// <param name="growthPolicy">Expansion policy (Doubling or Step).</param>
+        /// <param name="growthStep">Number of slots to add per expansion in Step mode.</param>
         public WorldConfig(
             int initialEntityCapacity = 256,
             int initialPoolBuckets = 256,

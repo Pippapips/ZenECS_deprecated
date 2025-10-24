@@ -20,7 +20,7 @@ namespace ZenEcsCoreSamples.WorldReset
             Console.WriteLine($"Before reset: alive={world.AliveCount}, e1.Has(Health)={world.Has<Health>(e1)}");
 
             // Option A: keep capacity (fastest) — clears data but preserves internal arrays/pools
-            world.ResetButKeepCapacity();
+            world.Reset(true);
             Console.WriteLine($"After ResetButKeepCapacity: alive={world.AliveCount}");
 
             // Re-seed
@@ -29,7 +29,7 @@ namespace ZenEcsCoreSamples.WorldReset
             Console.WriteLine($"Re-seed: alive={world.AliveCount}, e3.Has(Health)={world.Has<Health>(e3)}");
 
             // Option B: HardReset — rebuild internal structures from initial config
-            world.HardReset();
+            world.Reset(false);
             Console.WriteLine($"After HardReset: alive={world.AliveCount}");
         }
     }

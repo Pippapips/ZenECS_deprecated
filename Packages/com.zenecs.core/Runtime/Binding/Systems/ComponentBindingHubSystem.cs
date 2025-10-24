@@ -1,5 +1,20 @@
+// ──────────────────────────────────────────────────────────────────────────────
+// ZenECS Core
+// File: ComponentBindingHubSystem.cs
+// Purpose: Collects per-frame component change events into a de-duplicated batch.
+// Key concepts:
+//   • Subscribes to ComponentEvents.* and merges (entity,type) → mask.
+//   • Publishes a single batched list each frame via IComponentChangeFeed.
+//   • Presentation-stage system; ordered before ComponentBatchDispatchSystem.
+// 
+// Copyright (c) 2025 Pippapips Limited
+// License: MIT (https://opensource.org/licenses/MIT)
+// SPDX-License-Identifier: MIT
+// ──────────────────────────────────────────────────────────────────────────────
+#nullable enable
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using ZenECS.Core.Events;
 using ZenECS.Core.Systems;
 
@@ -7,58 +22,41 @@ namespace ZenECS.Core.Binding.Systems
 {
     [PresentationGroup]
     [OrderBefore(typeof(ComponentBatchDispatchSystem))]
-    public sealed class ComponentBindingHubSystem : ISystemLifecycle, IPresentationSystem
+    internal sealed class ComponentBindingHubSystem : ISystemLifecycle, IPresentationSystem
     {
-        private readonly System.Collections.Generic.Dictionary<(Entity, System.Type), ComponentChangeMask> _batch = new();
+        private readonly Dictionary<(Entity, Type), ComponentChangeMask> _batch = new();
         private readonly IComponentChangeFeed _feed;
 
-        public ComponentBindingHubSystem(IComponentChangeFeed feed)
-        {
-            _feed = feed;
-        }
+        public ComponentBindingHubSystem(IComponentChangeFeed feed) => _feed = feed;
 
         public void Initialize(World w)
         {
-            ComponentEvents.ComponentAdded += EcsEventsOnComponentAdded;
-            ComponentEvents.ComponentRemoved += EcsEventsOnComponentRemoved;
-            ComponentEvents.ComponentChanged += EcsEventsOnComponentChanged;
+            ComponentEvents.ComponentAdded += OnAdded;
+            ComponentEvents.ComponentRemoved += OnRemoved;
+            ComponentEvents.ComponentChanged += OnChanged;
         }
 
         public void Shutdown(World w)
         {
-            ComponentEvents.ComponentAdded -= EcsEventsOnComponentAdded;
-            ComponentEvents.ComponentRemoved -= EcsEventsOnComponentRemoved;
-            ComponentEvents.ComponentChanged -= EcsEventsOnComponentChanged;
+            ComponentEvents.ComponentAdded -= OnAdded;
+            ComponentEvents.ComponentRemoved -= OnRemoved;
+            ComponentEvents.ComponentChanged -= OnChanged;
+            _batch.Clear();
         }
 
         public void Run(World w)
         {
             if (_batch.Count == 0) return;
-            _feed.PublishBatch(System.Linq.Enumerable.ToList(System.Linq.Enumerable.Select(_batch, kv => new ComponentChangeRecord(kv.Key.Item1, kv.Key.Item2, kv.Value))));
+            var list = _batch.Select(kv => new ComponentChangeRecord(kv.Key.Item1, kv.Key.Item2, kv.Value)).ToList();
+            _feed.PublishBatch(list);
             _batch.Clear();
         }
 
-        public void Run(World w, float alpha = 1)
-        {
-            Run(w, alpha);
-        }
+        // Compatibility overload (alpha unused by this system)
+        public void Run(World w, float alpha = 1) { Run(w); }
 
-        private void EcsEventsOnComponentAdded(World w, Entity e, Type t)
-        {
-            if (t is null) return;
-            _batch[(e, t)] = ComponentChangeMask.Added;
-        }
-
-        private void EcsEventsOnComponentRemoved(World w, Entity e, Type t)
-        {
-            if (t is null) return;
-            _batch[(e, t)] = ComponentChangeMask.Removed;
-        }
-
-        private void EcsEventsOnComponentChanged(World w, Entity e, Type t)
-        {
-            if (t is null) return;
-            _batch[(e, t)] = ComponentChangeMask.Changed;
-        }
+        private void OnAdded(World w, Entity e, Type t)   { if (t != null) _batch[(e, t)] = ComponentChangeMask.Added; }
+        private void OnRemoved(World w, Entity e, Type t) { if (t != null) _batch[(e, t)] = ComponentChangeMask.Removed; }
+        private void OnChanged(World w, Entity e, Type t) { if (t != null) _batch[(e, t)] = ComponentChangeMask.Changed; }
     }
 }

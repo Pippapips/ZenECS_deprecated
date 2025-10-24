@@ -1,4 +1,4 @@
-﻿/*
+﻿﻿/*
     ZenECS.Core - Samples
     Basic world + MoveSystem (Simulation) + PrintPositions (Presentation).
     Position += Velocity * dt in Simulation; read-only print in Presentation.
@@ -6,8 +6,10 @@
 */
 
 using System.Diagnostics;
+using ZenECS;                        // Kernel
 using ZenECS.Core;
 using ZenECS.Core.Extensions;
+using ZenECS.Core.Infrastructure;
 using ZenECS.Core.Systems;
 
 namespace ZenEcsCoreSamples.Basic
@@ -60,27 +62,35 @@ namespace ZenEcsCoreSamples.Basic
     {
         private static void Main()
         {
-            Console.WriteLine("=== ZenECS Core Console Sample 01 Basic ===");
+            Console.WriteLine("=== ZenECS Core Console Sample 01 Basic (Kernel) ===");
 
-            World world = BuildWorld();
-
-            var runner = new SystemRunner(
-                world,
-                null, // default bus
-                new List<ISystem>
+            // 부팅: 월드 구성 콜백에서 로거와 엔티티를 구성
+            EcsKernel.Start(
+                new WorldConfig(initialEntityCapacity: 256),
+                (world, bus) =>
                 {
-                    new MoveSystem(),          // Simulation
-                    new PrintPositionsSystem() // Presentation (read-only)
-                },
-                new SystemRunnerOptions(),     // EndOfSimulation flush + guard writes in Presentation
-                Console.WriteLine);
+                    var ecsLogger = new EcsLogger();
+                    EcsRuntimeOptions.Log = ecsLogger;
 
-            runner.InitializeSystems();
+                    var e1 = world.CreateEntity();
+                    world.Add(e1, new Position(0, 0));
+                    world.Add(e1, new Velocity(1, 0));      // +X / sec
+
+                    var e2 = world.CreateEntity();
+                    world.Add(e2, new Position(2, 1));
+                    world.Add(e2, new Velocity(0, -0.5f));  // -Y / sec
+                }
+            );
+
+            // 시스템 초기화
+            EcsKernel.InitializeSystems(new ISystem[]
+            {
+                new MoveSystem(),          // Simulation
+                new PrintPositionsSystem() // Presentation (read-only)
+            }, new SystemRunnerOptions(), null, Console.WriteLine);
 
             const float fixedDelta = 1f / 60f;   // 60Hz
-            float accumulator = 0f;
-
-            var sw = Stopwatch.StartNew();
+            var sw   = Stopwatch.StartNew();
             double prev = sw.Elapsed.TotalSeconds;
 
             Console.WriteLine("Running... press any key to exit.");
@@ -97,48 +107,24 @@ namespace ZenEcsCoreSamples.Basic
                 float  dt  = (float)(now - prev);
                 prev = now;
 
-                // Variable-step (once per frame)
-                runner.BeginFrame(dt);
-                
-                // Fixed-step accumulator (0..N times)
-                accumulator += dt;
-                int subSteps = 0;
+                // 가변 스텝 Begin + 고정 스텝 N회 + alpha 계산을 한 번에
                 const int maxSubStepsPerFrame = 4;
-
-                while (accumulator >= fixedDelta && subSteps < maxSubStepsPerFrame)
-                {
-                    runner.FixedStep(fixedDelta);   // internally sets DeltaTime/FixedDeltaTime
-                    accumulator -= fixedDelta;
-                    subSteps++;
-                }
-                
-                // Presentation (read-only) with optional interpolation
-                float alpha = fixedDelta > 0f ? Math.Clamp(accumulator / fixedDelta, 0f, 1f) : 1f;
-                runner.LateFrame(alpha);
+                EcsKernel.Pump(dt, fixedDelta, maxSubStepsPerFrame, out var alpha);
+                EcsKernel.LateFrame(alpha);
 
                 Thread.Sleep(1); // be gentle to CPU
             }
 
             Console.WriteLine("Shutting down...");
-            runner.ShutdownSystems();
-            world.HardReset(); // safety clear
+            EcsKernel.Shutdown();
             Console.WriteLine("Done.");
         }
 
-        /// <summary>Compose world and entities.</summary>
-        private static World BuildWorld()
+        class EcsLogger : EcsRuntimeOptions.ILogger
         {
-            var world = new World();
-
-            var e1 = world.CreateEntity();
-            world.Add(e1, new Position(0, 0));
-            world.Add(e1, new Velocity(1, 0));      // +X / sec
-
-            var e2 = world.CreateEntity();
-            world.Add(e2, new Position(2, 1));
-            world.Add(e2, new Velocity(0, -0.5f));  // -Y / sec
-
-            return world;
+            public void Info(string msg)  => Console.WriteLine(msg);
+            public void Warn(string msg)  => Console.Error.WriteLine(msg);
+            public void Error(string msg) => Console.Error.Write(msg);
         }
     }
 }

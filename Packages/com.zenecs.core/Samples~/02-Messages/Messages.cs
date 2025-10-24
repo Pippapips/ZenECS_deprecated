@@ -1,5 +1,14 @@
-﻿using System;
-using ZenECS.Core.Messaging;
+﻿/*
+ * ZenECS Core
+ * Copyright (c) 2025 Pippapips Limited
+ * License: MIT (see LICENSE or https://opensource.org/licenses/MIT)
+ * SPDX-License-Identifier: MIT
+ * Repository: https://github.com/pippapis/zenecs.git
+ */
+using System;
+using ZenECS;                // Kernel
+using ZenECS.Core;           // WorldConfig
+using ZenECS.Core.Messaging; // IMessage
 
 namespace ZenEcsCoreSamples.Messages
 {
@@ -16,7 +25,13 @@ namespace ZenEcsCoreSamples.Messages
     {
         public static void Main()
         {
-            var bus = new MessageBus();
+            // Kernel 부팅 (월드/버스 생성)
+            EcsKernel.Start(new WorldConfig(), configure: (world, bus) =>
+            {
+                // 메시지 초기 구독/와이어링이 있으면 여기서 해도 됨
+            });
+
+            var bus = EcsKernel.Bus; // 편의 레퍼런스
 
             // Subscribe (disposable)
             using var sub1 = bus.Subscribe<DamageTaken>(m =>
@@ -33,10 +48,13 @@ namespace ZenEcsCoreSamples.Messages
             int delivered = bus.PumpAll();
             Console.WriteLine($"Delivered {delivered} messages.");
 
-            // Show that publish during handling is safe next PumpAll
+            // Show that publish during handling is safe on next PumpAll
             bus.Publish(new DamageTaken(3, 99));
             Console.WriteLine("Pump again...");
             bus.PumpAll();
+
+            // 종료 정리
+            EcsKernel.Shutdown();
         }
     }
 }
