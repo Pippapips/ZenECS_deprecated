@@ -7,7 +7,7 @@
 //   • Backends abstract the actual storage (stream, memory buffer, etc.).
 // 
 // Copyright (c) 2025 Pippapips Limited
-// License: MIT
+// License: MIT (https://opensource.org/licenses/MIT)
 // SPDX-License-Identifier: MIT
 // ──────────────────────────────────────────────────────────────────────────────
 #nullable enable

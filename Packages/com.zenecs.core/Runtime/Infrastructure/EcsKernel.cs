@@ -8,7 +8,7 @@
 //   • Thread-safe singleton-style management.
 // 
 // Copyright (c) 2025 Pippapips Limited
-// License: MIT
+// License: MIT (https://opensource.org/licenses/MIT)
 // SPDX-License-Identifier: MIT
 // ──────────────────────────────────────────────────────────────────────────────
 #nullable enable
@@ -33,7 +33,14 @@ namespace ZenECS
             get { lock (_gate) return _defaultHost?.IsRunning == true; }
         }
 
-        public static void Start(WorldConfig? config = null, Action<World, MessageBus>? configure = null, bool throwIfRunning = false)
+        public static void Start(WorldConfig? config = null,
+            IEnumerable<ISystem>? systems = null,
+            SystemRunnerOptions? options = null,
+            IMainThreadGate? mainThreadGate = null,
+            Action<string>? systemRunnerLog = null,
+            Action<World, MessageBus>? configure = null,
+            
+            bool throwIfRunning = false)
         {
             lock (_gate)
             {
@@ -43,18 +50,13 @@ namespace ZenECS
                     if (throwIfRunning) throw new InvalidOperationException("Kernel already started.");
                     return;
                 }
-                _defaultHost.Start(config ?? new WorldConfig(), configure);
+                _defaultHost.Start(config ?? new WorldConfig(),
+                    systems ?? Array.Empty<ISystem>(),
+                    options,
+                    mainThreadGate,
+                    systemRunnerLog,
+                    configure);
             }
-        }
-
-        // Forwarding to underlying host
-        public static void InitializeSystems(IEnumerable<ISystem> systems,
-            SystemRunnerOptions? options = null,
-            IMainThreadGate? mainThreadGate = null,
-            Action<string>? log = null)
-        {
-            var host = SnapshotHostOrThrow();
-            host.InitializeSystems(systems, options, mainThreadGate, log);
         }
 
         public static Core.Systems.SystemRunner Runner

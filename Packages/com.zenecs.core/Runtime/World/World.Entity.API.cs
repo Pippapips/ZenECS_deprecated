@@ -8,7 +8,7 @@
 //   • Prevents zombie handles by generation mismatch.
 //
 // Copyright (c) 2025 Pippapips Limited
-// License: MIT (see LICENSE or https://opensource.org/licenses/MIT)
+// License: MIT (https://opensource.org/licenses/MIT)
 // SPDX-License-Identifier: MIT
 // ──────────────────────────────────────────────────────────────────────────────
 #nullable enable

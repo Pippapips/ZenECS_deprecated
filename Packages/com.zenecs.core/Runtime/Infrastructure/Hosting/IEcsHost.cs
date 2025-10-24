@@ -7,7 +7,7 @@
 //   • Allows safe multithreaded management via EcsKernel static wrapper.
 // 
 // Copyright (c) 2025 Pippapips Limited
-// License: MIT
+// License: MIT (https://opensource.org/licenses/MIT)
 // SPDX-License-Identifier: MIT
 // ──────────────────────────────────────────────────────────────────────────────
 #nullable enable
@@ -26,14 +26,15 @@ namespace ZenECS.Core.Hosting
         MessageBus Bus { get; }
         bool IsRunning { get; }
 
-        void Start(WorldConfig config, Action<World, MessageBus>? configure = null);
+        void Start(WorldConfig config,
+            IEnumerable<ISystem> systems,
+            SystemRunnerOptions? options = null,
+            IMainThreadGate? mainThreadGate = null,
+            Action<string>? systemRunnerLog = null,
+            Action<World, MessageBus>? configure = null);
         void Shutdown();
 
         // ---- Runner lifecycle / forwarding ----
-        void InitializeSystems(IEnumerable<ISystem> systems,
-            SystemRunnerOptions? options = null,
-            IMainThreadGate? mainThreadGate = null,
-            Action<string>? log = null);
         SystemRunner Runner { get; }
         void BeginFrame(float dt);
         void FixedStep(float fixedDelta);

@@ -8,7 +8,7 @@
 //   • Resets runtime state on shutdown (ComponentEvents, EntityEvents, etc.).
 // 
 // Copyright (c) 2025 Pippapips Limited
-// License: MIT
+// License: MIT (https://opensource.org/licenses/MIT)
 // SPDX-License-Identifier: MIT
 // ──────────────────────────────────────────────────────────────────────────────
 #nullable enable
@@ -41,22 +41,28 @@ namespace ZenECS.Core.Hosting
 
         public bool IsRunning { get; private set; }
 
-        public void Start(WorldConfig config, Action<World, MessageBus>? configure = null)
+        public void Start(WorldConfig config,
+            IEnumerable<ISystem> systems,
+            SystemRunnerOptions? options = null,
+            IMainThreadGate? mainThreadGate = null,
+            Action<string>? systemRunnerLog = null,
+            Action<World, MessageBus>? configure = null)
         {
             lock (_gate)
             {
                 if (IsRunning) return;
                 _world = new World(config);
                 _bus = new MessageBus();
-                configure?.Invoke(_world, _bus);
                 IsRunning = true;
+                initializeSystems(systems, options, mainThreadGate, systemRunnerLog);
+                configure?.Invoke(_world, _bus);
             }
         }
 
         /// <summary>
         /// Initializes the SystemRunner and registers/initializes systems.
         /// </summary>
-        public void InitializeSystems(IEnumerable<ISystem> systems,
+        private void initializeSystems(IEnumerable<ISystem> systems,
             SystemRunnerOptions? options = null,
             IMainThreadGate? mainThreadGate = null,
             Action<string>? log = null)

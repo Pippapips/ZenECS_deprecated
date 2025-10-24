@@ -1,4 +1,4 @@
-﻿﻿// ──────────────────────────────────────────────────────────────────────────────
+﻿// ──────────────────────────────────────────────────────────────────────────────
 // ZenECS Core — World subsystem
 // File: World.JobScheduling.cs
 // Purpose: Lightweight job scheduling for deferring world mutations or batched work.
@@ -8,7 +8,7 @@
 //   • Intended for frame-barrier style application alongside CommandBuffer.
 //
 // Copyright (c) 2025 Pippapips Limited
-// License: MIT (see LICENSE or https://opensource.org/licenses/MIT)
+// License: MIT (https://opensource.org/licenses/MIT)
 // SPDX-License-Identifier: MIT
 // ──────────────────────────────────────────────────────────────────────────────
 #nullable enable

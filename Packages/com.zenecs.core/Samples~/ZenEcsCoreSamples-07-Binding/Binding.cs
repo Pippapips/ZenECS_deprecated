@@ -8,7 +8,7 @@
 //   • Simulates ECS runtime loop with Begin/Fixed/Late steps
 //
 // Copyright (c) 2025 Pippapips Limited
-// License: MIT
+// License: MIT (https://opensource.org/licenses/MIT)
 // SPDX-License-Identifier: MIT
 // ──────────────────────────────────────────────────────────────────────────────
 using System;
@@ -89,44 +89,39 @@ namespace ZenECS.Binding.ConsoleSample
     internal static class Program
     {
         private static World? _w;
-        private static IMessageBus? _bus; 
+        private static Entity _e;
         
         static void Main()
         {
             // --- Booting ECS ---
             EcsKernel.Start(
                 new WorldConfig(initialEntityCapacity: 256),
+                null,
+                null, 
+                null,
+                Console.WriteLine,
                 (world, bus) =>
                 {
                     var ecsLogger = new EcsLogger();
                     EcsRuntimeOptions.Log = ecsLogger;
+
+                    // Create entity and associate with a console view
+                    var e = world.CreateEntity();
+                    var view = new ConsoleViewBinder("Player-View");
+                    EcsRuntimeDirectory.ViewBinderRegistry?.Register(e, view);
+
+                    // Add and modify Position component
+                    world.Add(e, new Position(1, 1));
+                    world.Replace(e, new Position(2.5f, 4));
+
                     _w = world;
-                    _bus = bus;
+                    _e = e;
                 }
             );
             
-            // --- Initialize ECS systems (none required for this simple test) ---
-            EcsKernel.InitializeSystems(Array.Empty<ISystem>(), new SystemRunnerOptions(), null, Console.WriteLine);
-
             // Register the Position binder globally
             EcsRuntimeDirectory.ComponentBinderRegistry?.RegisterSingleton<Position>(new PositionBinder());
 
-            if (_w == null)
-            {
-                Console.Error.WriteLine("World initialization failed.");
-                Console.ReadLine();
-                return;
-            }
-
-            // Create entity and associate with a console view
-            var e = _w.CreateEntity();
-            var view = new ConsoleViewBinder("Player-View");
-            EcsRuntimeDirectory.ViewBinderRegistry?.Register(e, view);
-
-            // Add and modify Position component
-            _w.Add(e, new Position(1, 1));
-            _w.Replace(e, new Position(2.5f, 4));
-            
             const float fixedDelta = 1f / 60f;   // 60Hz
             var sw = Stopwatch.StartNew();
             double prev = sw.Elapsed.TotalSeconds;
@@ -139,7 +134,10 @@ namespace ZenECS.Binding.ConsoleSample
                 if (Console.KeyAvailable)
                 {
                     _ = Console.ReadKey(intercept: true);
-                    _w.Remove<Position>(e);                    
+                    if (_w != null && _w.IsAlive(_e))
+                    {
+                        _w.Remove<Position>(_e);
+                    }
                     loop = false;
                 }
 

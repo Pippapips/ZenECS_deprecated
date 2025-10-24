@@ -8,7 +8,7 @@
 //   • Supports deferred adds via CommandBuffer when structural safety is required.
 // 
 // Copyright (c) 2025 Pippapips Limited
-// License: MIT
+// License: MIT (https://opensource.org/licenses/MIT)
 // SPDX-License-Identifier: MIT
 // ──────────────────────────────────────────────────────────────────────────────
 #nullable enable

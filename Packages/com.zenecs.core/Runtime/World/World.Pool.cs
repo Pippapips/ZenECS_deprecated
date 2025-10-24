@@ -1,4 +1,4 @@
-﻿﻿// ──────────────────────────────────────────────────────────────────────────────
+﻿// ──────────────────────────────────────────────────────────────────────────────
 // ZenECS Core — World subsystem
 // File: World.Pool.cs
 // Purpose: Pool creation/get helpers and internal wiring of component storage.
@@ -7,7 +7,7 @@
 //   • Centralizes pool management details.
 //
 // Copyright (c) 2025 Pippapips Limited
-// License: MIT (see LICENSE or https://opensource.org/licenses/MIT)
+// License: MIT (https://opensource.org/licenses/MIT)
 // SPDX-License-Identifier: MIT
 // ──────────────────────────────────────────────────────────────────────────────
 using System;
