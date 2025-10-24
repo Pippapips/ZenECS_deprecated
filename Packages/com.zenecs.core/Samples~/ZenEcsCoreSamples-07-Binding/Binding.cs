@@ -105,6 +105,9 @@ namespace ZenECS.Binding.ConsoleSample
                     var ecsLogger = new EcsLogger();
                     EcsRuntimeOptions.Log = ecsLogger;
 
+                    // Register the Position binder globally
+                    EcsRuntimeDirectory.ComponentBinderRegistry?.RegisterSingleton<Position>(new PositionBinder());
+                    
                     // Create entity and associate with a console view
                     var e = world.CreateEntity();
                     var view = new ConsoleViewBinder("Player-View");
@@ -119,9 +122,6 @@ namespace ZenECS.Binding.ConsoleSample
                 }
             );
             
-            // Register the Position binder globally
-            EcsRuntimeDirectory.ComponentBinderRegistry?.RegisterSingleton<Position>(new PositionBinder());
-
             const float fixedDelta = 1f / 60f;   // 60Hz
             var sw = Stopwatch.StartNew();
             double prev = sw.Elapsed.TotalSeconds;
