@@ -1,190 +1,160 @@
-# ZenECS Core — 01 Core Console (Realtime loop)
+# ZenECS Core — Sample 01: Basic (Kernel)
 
-A tiny **console** sample that demonstrates a realtime ZenECS Core loop:
-
-* Minimal components: `Position`, `Velocity`
-* Two systems with clear roles:
-
-    * `MoveSystem : IVariableRunSystem` (Simulation — writes)
-    * `PrintPositionsSystem : IPresentationSystem` (Presentation — read-only)
-* World queries via `World.Query<…>()`, reading/updating with `Read`/`Replace`
-* A main loop that runs until **any key** is pressed
-* Mixed timing: per-frame variable step + fixed-timestep accumulator
+A minimal **console** sample showing how to use the ZenECS **Kernel API** to run a simple simulation and presentation loop.
 
 ---
 
-## What this sample does
+## 🧩 Overview
 
-1. Builds a `World`, creates two entities:
+This sample demonstrates:
 
-    * `e1`: `Position(0,0)`, `Velocity(1,0)` → moves +X
-    * `e2`: `Position(2,1)`, `Velocity(0,-0.5)` → moves −Y
-2. Composes a `SystemRunner` with:
+* ECS **world bootstrapping** with `EcsKernel.Start`
+* Two basic components:
 
-    * `MoveSystem` (Simulation)
-    * `PrintPositionsSystem` (Presentation, read-only)
-3. Runs a main loop:
+    * `Position` — entity coordinates
+    * `Velocity` — movement delta per second
+* Two systems with clear separation of concerns:
 
-    * `BeginFrame(dt)` once per frame (variable step)
-    * `FixedStep(fixedDelta)` zero or more times per frame (accumulator, 60 Hz)
-    * `LateFrame(alpha)` for rendering/binding; `alpha` comes from the accumulator
-4. Exits cleanly when **any key** is pressed, then shuts down systems.
+    * `MoveSystem` — simulation (writes)
+    * `PrintPositionsSystem` — presentation (read-only)
+* A frame loop with **variable delta** + **fixed timestep** integration (`Pump` + `LateFrame`)
 
 ---
 
-## File layout
+## ⚙️ Systems
 
-```
-Program.cs
-```
+### `MoveSystem` (Simulation)
 
-Key parts (trimmed for clarity):
+Integrates velocity into position:
 
-* **Components**
-
-  ```csharp
-  public readonly struct Position { public readonly float X, Y; /* … */ }
-  public readonly struct Velocity { public readonly float X, Y; /* … */ }
-  ```
-
-* **Systems**
-
-  ```csharp
-  [SimulationGroup]
-  public sealed class MoveSystem : IVariableRunSystem
-  {
-      public void Run(World w)
-      {
-          var dt = w.DeltaTime;
-          foreach (var e in w.Query<Position, Velocity>())
-          {
-              var p = w.Read<Position>(e);
-              var v = w.Read<Velocity>(e);
-              w.Replace(e, new Position(p.X + v.X * dt, p.Y + v.Y * dt));
-          }
-      }
-  }
-
-  [PresentationGroup]
-  public sealed class PrintPositionsSystem : IPresentationSystem
-  {
-      public void Run(World w, float alpha)
-      {
-          Console.WriteLine($"-- Tick: {w.Tick} (alpha={alpha:0.00}) --");
-          foreach (var e in w.Query<Position>())
-          {
-              var p = w.Read<Position>(e); // ✅ read-only
-              Console.WriteLine($"Entity {e.Id,3}: pos={p}");
-          }
-      }
-  }
-  ```
-
-* **Driver loop (excerpt)**
-
-  ```csharp
-  var runner = new SystemRunner(
-      world,
-      new List<ISystem> { new MoveSystem(), new PrintPositionsSystem() },
-      new SystemRunnerOptions(),   // EndOfSimulation + guard writes in Presentation
-      Console.WriteLine);
-
-  const float fixedDelta = 1f / 60f;
-  float accumulator = 0f;
-  var sw = Stopwatch.StartNew();
-  double prev = sw.Elapsed.TotalSeconds;
-
-  while (!Console.KeyAvailable)
-  {
-      double now = sw.Elapsed.TotalSeconds;
-      float dt = (float)(now - prev);
-      prev = now;
-
-      runner.BeginFrame(dt);              // variable step once
-
-      accumulator += dt;                  // fixed step 0..N times
-      int steps = 0;
-      while (accumulator >= fixedDelta && steps < 4)
-      {
-          runner.FixedStep(fixedDelta);
-          accumulator -= fixedDelta;
-          steps++;
-      }
-
-      float alpha = fixedDelta > 0 ? Math.Clamp(accumulator / fixedDelta, 0f, 1f) : 1f;
-      runner.LateFrame(alpha);            // read-only presentation
-
-      Thread.Sleep(1);                    // be gentle to CPU
-  }
-
-  runner.ShutdownSystems();
-  world.RunScheduledJobs();               // safety flush
-  ```
-
----
-
-## Prerequisites
-
-* **.NET 8 SDK** (or newer)
-* ZenECS Core sources in your solution (Core + Systems + Runner)
-
----
-
-## Build & Run
-
-From the repository root (adjust the path to your project):
-
-```bash
-dotnet restore
-dotnet build --no-restore
-dotnet run --project src/Samples/ZenEcsCore-01-Core-Console.csproj
+```csharp
+[SimulationGroup]
+public sealed class MoveSystem : IVariableRunSystem
+{
+    public void Run(World w)
+    {
+        var dt = w.DeltaTime;
+        foreach (var e in w.Query<Position, Velocity>())
+        {
+            var p = w.Read<Position>(e);
+            var v = w.Read<Velocity>(e);
+            w.Replace(e, new Position(p.X + v.X * dt, p.Y + v.Y * dt));
+        }
+    }
+}
 ```
 
-> **IDE tip (Rider/VS):** Select **01 Core Console** as the startup project.
+### `PrintPositionsSystem` (Presentation)
+
+Reads and prints all entity positions every frame:
+
+```csharp
+[PresentationGroup]
+public sealed class PrintPositionsSystem : IPresentationSystem
+{
+    public void Run(World w, float alpha)
+    {
+        Console.WriteLine($"-- FrameCount: {w.FrameCount} (alpha={alpha:0.00}) --");
+        foreach (var e in w.Query<Position>())
+        {
+            var p = w.Read<Position>(e); // read-only
+            Console.WriteLine($"Entity {e.Id,3}: pos={p}");
+        }
+    }
+}
+```
 
 ---
 
-## Example output
+## 🧠 Main Loop Logic
+
+The program creates two entities:
+
+| Entity | Initial Position | Velocity  | Movement           |
+| -----: | ---------------- | --------- | ------------------ |
+|   `e1` | (0, 0)           | (1, 0)    | Moves +X direction |
+|   `e2` | (2, 1)           | (0, −0.5) | Moves −Y direction |
+
+Frame execution:
+
+```csharp
+const float fixedDelta = 1f / 60f;   // 60Hz simulation
+const int maxSubStepsPerFrame = 4;
+
+EcsKernel.Pump(dt, fixedDelta, maxSubStepsPerFrame, out var alpha);
+EcsKernel.LateFrame(alpha);
+```
+
+This performs:
+
+1. **BeginFrame(dt)** — variable step logic
+2. **FixedStep(fixedDelta)** — zero or more substeps for deterministic updates
+3. **LateFrame(alpha)** — read-only presentation/interpolation
+
+---
+
+## 🖥️ Example Output
 
 ```
-=== ZenECS Core Console Sample ===
+=== ZenECS Core Console Sample 01: Basic (Kernel) ===
 Running... press any key to exit.
--- Tick: 1 (alpha=0.33) --
-Entity   1: pos=(0.02, 0)
-Entity   2: pos=(2, 1.00)
--- Tick: 2 (alpha=0.45) --
-Entity   1: pos=(0.04, 0)
-Entity   2: pos=(2, 0.99)
+-- FrameCount: 1 (alpha=0.33) --
+Entity   1: pos=(0.02, 0.00)
+Entity   2: pos=(2.00, 1.00)
+-- FrameCount: 2 (alpha=0.52) --
+Entity   1: pos=(0.04, 0.00)
+Entity   2: pos=(2.00, 0.99)
 ...
 Shutting down...
 Done.
 ```
 
-*(Entity IDs and exact numbers depend on timing on your machine.)*
+---
+
+## 🧩 APIs Highlighted
+
+| Category             | Key Methods                                                             |
+| -------------------- | ----------------------------------------------------------------------- |
+| **World**            | `CreateEntity()`, `Add<T>()`, `Read<T>()`, `Replace<T>()`, `Query<T>()` |
+| **Kernel**           | `EcsKernel.Start()`, `Pump()`, `LateFrame()`, `Shutdown()`              |
+| **System Execution** | `[SimulationGroup]`, `[PresentationGroup]`                              |
+| **Timing**           | Variable step (`dt`) + Fixed step (`fixedDelta`) integration            |
 
 ---
 
-## APIs showcased
+## ✅ Best Practices
 
-* `World.CreateEntity()`, `World.Add(entity, component)`
-* `World.Query<T1[,T2]>()`, `World.Read<T>()`, `World.Replace<T>(…, value)`
-* `SystemRunner.BeginFrame(dt)`, `FixedStep(fixedDelta)`, `LateFrame(alpha)`
-* `SystemRunnerOptions` with `EndOfSimulation` flush and Presentation write-guard
-* Separation of concerns:
-
-    * **Simulation**: writes/components changes (recorded, then flushed at barrier)
-    * **Presentation**: **read-only** (query + read)
+* **Write** components only in **SimulationGroup** systems.
+* **Read-only** access in **PresentationGroup** systems ensures deterministic consistency.
+* Use fixed-timestep for physics/AI updates and variable step for smooth input or visual logic.
+* Limit CPU load in console samples using `Thread.Sleep(1)` inside the loop.
 
 ---
 
-## Notes & best practices
+## 🧱 Build & Run
 
-* **Write at Simulation, Read at Presentation.** Presentation is guarded against writes.
-* Use **fixed-timestep** for determinism (physics/AI), **variable step** for per-frame logic.
-* If you don’t use interpolation, pass `alpha = 1f` so you display the latest state.
+### Prerequisites
+
+* .NET 8 SDK or newer
+* ZenECS Core assemblies available in the same solution
+
+### Command line
+
+```bash
+dotnet restore
+dotnet build --no-restore
+dotnet run --project Samples/ZenEcsCore-01-Basic.csproj
+```
+
+Press **any key** to exit.
 
 ---
 
-## License
+## 📜 License
 
 MIT © 2025 Pippapips Limited
+See [LICENSE](https://opensource.org/licenses/MIT) for details.
+
+---
+
+원하신다면, 이 README를 기반으로 `02-Unity`나 `03-UniRx` 같은 다음 샘플의 문서 템플릿도 동일한 포맷으로 만들어드릴 수 있습니다.

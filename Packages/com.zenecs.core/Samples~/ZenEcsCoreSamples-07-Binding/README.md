@@ -1,99 +1,110 @@
-# ZenECS Core — Binding Console Sample
+# ZenECS Core — Sample 01: Basic (Kernel)
 
-A tiny **console** sample that demonstrates the ZenECS **Binding** pipeline end-to-end, without Unity.
+A minimal **console** sample demonstrating the ZenECS **Kernel** loop with simulation and presentation systems.
 
-* Minimal component: `Position`
-* Concrete binder: `PositionBinder : IComponentBinder<Position>`
-* Simple view: `ConsoleViewBinder`
-* Presentation systems (run in **Late** only):
+* Minimal components: `Position`, `Velocity`
+* Systems:
 
-    * `ComponentBindingHubSystem` (collects component changes per frame)
-    * `ComponentBatchDispatchSystem` (publishes/consumes change batches)
-    * `ViewBindingSystem` (Bind/Apply/Unbind to views)
+    * `MoveSystem : IVariableRunSystem` — integrates `Position += Velocity * dt`
+    * `PrintPositionsSystem : IPresentationSystem` — read-only presentation
+* Demonstrates:
+
+    * `EcsKernel.Start()` for world bootstrapping
+    * `Pump()` for variable-step + fixed-step integration
+    * `LateFrame()` for presentation phase execution
 
 ---
 
 ## What this sample shows
 
-1. **Entity & View wiring**
-   Create an entity, register a view binder, and register a component binder.
+1. **World creation and entity setup**
+   The ECS world is created, two entities are spawned, and each is assigned `Position` and `Velocity` components.
 
-2. **Change collection → batch dispatch → view apply**
-   Add / replace / remove a component and observe how the three presentation systems route those changes to the view.
+2. **Simulation and presentation flow**
+   `MoveSystem` performs simulation updates (writes), while `PrintPositionsSystem` prints results (read-only).
 
-3. **Frame loop integration**
-   Use `EcsKernel.Pump(...)` for variable step + fixed substeps and `EcsKernel.LateFrame(alpha)` to run presentation.
+3. **Frame loop with variable + fixed timestep**
+   Uses `EcsKernel.Pump(dt, fixedDelta, maxSubSteps, out alpha)` to handle variable time delta, fixed simulation steps, and interpolation.
 
 ---
 
 ## TL;DR flow
 
 ```
-World changes  →  ComponentBindingHubSystem (collect per frame)
-               →  ComponentBatchDispatchSystem (batch publish)
-               →  ViewBindingSystem (Bind / Apply / Unbind)
+World.Start()
+   ├─ SimulationGroup (MoveSystem)
+   │     Position += Velocity * dt
+   └─ PresentationGroup (PrintPositionsSystem)
+         Console output of all positions
 ```
 
-All three systems are in the **Presentation group** and therefore run in **Late**.
+Simulation runs first; presentation follows during the **Late** phase for read-only safety.
 
 ---
 
 ## File layout
 
 ```
-Binding.cs
+Basic.cs
 ```
 
 Key excerpts:
 
-### Component
+### Components
 
 ```csharp
-public readonly struct Position : IEquatable<Position>
+public readonly struct Position
 {
     public readonly float X, Y;
     public Position(float x, float y) { X = x; Y = y; }
-    public bool Equals(Position other) => X.Equals(other.X) && Y.Equals(other.Y);
-    public override int GetHashCode() => HashCode.Combine(X, Y);
-    public override string ToString() => $"({X:0.##}, {Y:0.##})";
+    public override string ToString() => $"({X:0.###}, {Y:0.###})";
 }
-```
 
-### Binder
-
-```csharp
-public sealed class PositionBinder : IComponentBinder<Position>, IComponentBinder
+public readonly struct Velocity
 {
-    public Type ComponentType => typeof(Position);
-    public void Bind(World w, Entity e, IViewBinder v)
-        => Console.WriteLine($"[Bind]   e={e} Position");
-    public void Apply(World w, Entity e, in Position value, IViewBinder v)
-        => Console.WriteLine($"[Apply]  e={e} Position={value}");
-    public void Unbind(World w, Entity e, IViewBinder v)
-        => Console.WriteLine($"[Unbind] e={e} Position");
-
-    // non-generic fallback kept for compatibility
-    void IComponentBinder.Apply(World w, Entity e, object value, IViewBinder t)
-        => Apply(w, e, (Position)value, t);
+    public readonly float X, Y;
+    public Velocity(float x, float y) { X = x; Y = y; }
 }
 ```
 
-### View (console stub)
+### Systems
 
 ```csharp
-public sealed class ConsoleViewBinder : IViewBinder
+[SimulationGroup]
+public sealed class MoveSystem : IVariableRunSystem
 {
-    public string Name { get; }
-    public ConsoleViewBinder(string name) => Name = name;
-    public override string ToString() => Name;
+    public void Run(World w)
+    {
+        var dt = w.DeltaTime;
+        foreach (var e in w.Query<Position, Velocity>())
+        {
+            var p = w.Read<Position>(e);
+            var v = w.Read<Velocity>(e);
+            w.Replace(e, new Position(p.X + v.X * dt, p.Y + v.Y * dt));
+        }
+    }
+}
+
+[PresentationGroup]
+public sealed class PrintPositionsSystem : IPresentationSystem
+{
+    public void Run(World w, float alpha)
+    {
+        Console.WriteLine($"-- FrameCount: {w.FrameCount} (alpha={alpha:0.00}) --");
+        foreach (var e in w.Query<Position>())
+        {
+            var p = w.Read<Position>(e); // read-only
+            Console.WriteLine($"Entity {e.Id,3}: pos={p}");
+        }
+    }
 }
 ```
 
-### Frame driver
+### Main loop
 
 ```csharp
-const float fixedDelta = 1f / 60f;   // 60Hz
-const int   maxSubSteps = 4;
+const float fixedDelta = 1f / 60f; // 60Hz
+const int maxSubSteps = 4;
 
 EcsKernel.Pump(dt, fixedDelta, maxSubSteps, out var alpha);
 EcsKernel.LateFrame(alpha);
@@ -103,7 +114,7 @@ EcsKernel.LateFrame(alpha);
 
 ## Build & Run
 
-**Prereqs:** .NET 8 SDK, and ZenECS Core assemblies referenced so the types resolve.
+**Prereqs:** .NET 8 SDK, and ZenECS Core assemblies referenced.
 
 ```bash
 dotnet restore
@@ -111,41 +122,56 @@ dotnet build --no-restore
 dotnet run --project <your-console-sample-csproj>
 ```
 
-Stop the app by pressing any key (the sample removes `Position` before shutting down).
+Press any key to exit the running loop.
 
 ---
 
 ## Example output
 
 ```
+=== ZenECS Core Console Sample 01: Basic (Kernel) ===
 Running... press any key to exit.
-[Bind]   e=Entity(1:0) Position
-[Apply]  e=Entity(1:0) Position=(2.5, 4)
-[Unbind] e=Entity(1:0) Position
+-- FrameCount: 1 (alpha=0.32) --
+Entity   1: pos=(0.02, 0.00)
+Entity   2: pos=(2.00, 1.00)
+-- FrameCount: 2 (alpha=0.53) --
+Entity   1: pos=(0.04, 0.00)
+Entity   2: pos=(2.00, 0.99)
+...
 Shutting down...
 Done.
 ```
-
-* Add → `Bind` + `Apply`
-* Replace → `Apply`
-* Remove → `Unbind`
 
 ---
 
 ## APIs highlighted
 
-* **Kernel & loop:** `EcsKernel.Start/InitializeSystems/Pump/LateFrame/Shutdown`
-* **Binders:** `IComponentBinder<T>.Bind/Apply/Unbind` (uses `in T` for value-type zero-copy)
-* **Registries/Resolver:** `ComponentBinderRegistry`, `ComponentBinderResolver`, `ViewBinderRegistry`
-* **Presentation systems:** `ComponentBindingHubSystem`, `ComponentBatchDispatchSystem`, `ViewBindingSystem`
+* **Kernel lifecycle**
+
+    * `EcsKernel.Start()`
+    * `EcsKernel.Pump(dt, fixedDelta, maxSubSteps, out alpha)`
+    * `EcsKernel.LateFrame(alpha)`
+    * `EcsKernel.Shutdown()`
+
+* **World operations**
+
+    * `World.CreateEntity()`
+    * `World.Add<T>()`, `World.Read<T>()`, `World.Replace<T>()`
+    * `World.Query<T>()`
+
+* **System attributes**
+
+    * `[SimulationGroup]` — executed during fixed/variable updates
+    * `[PresentationGroup]` — executed during Late phase (read-only)
 
 ---
 
 ## Notes & best practices
 
-* Keep binders **idempotent**: applying the same value shouldn’t cause unintended side-effects.
-* Presentation runs in **Late**: game logic mutates components earlier; views update once at the end of the frame.
-* For Unity hosts, plug a **Unity main-thread gate** (not shown here) to guarantee dispatcher execution on the main thread.
+* Simulation systems **write**, presentation systems **read-only**.
+* Presentation phase should avoid modifying components to ensure frame determinism.
+* Use **fixed timestep** for stable simulations, and **alpha interpolation** for smooth rendering.
+* Add a small sleep (e.g., `Thread.Sleep(1)`) in console loops to reduce CPU load.
 
 ---
 
