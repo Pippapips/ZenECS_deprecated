@@ -22,7 +22,7 @@ namespace ZenECS.Core.Sync
     /// Default implementation of <see cref="IViewBinderRegistry"/> that stores and resolves
     /// active view binders by <see cref="Entity"/>. Designed for main-thread usage.
     /// </summary>
-    public sealed class ViewBinderRegistry : IViewBinderRegistry
+    internal sealed class ViewBinderRegistry : IViewBinderRegistry
     {
         /// <summary>
         /// Mapping from entity to its currently registered view binder.

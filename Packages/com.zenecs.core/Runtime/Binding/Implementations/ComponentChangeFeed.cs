@@ -23,7 +23,7 @@ namespace ZenECS.Core.Binding
     /// <summary>
     /// Aggregates and dispatches change batches at the end of the frame on the main thread.
     /// </summary>
-    public sealed class ComponentChangeFeed : IComponentChangeFeed
+    internal sealed class ComponentChangeFeed : IComponentChangeFeed
     {
         private readonly IMainThreadGate _gate;
         private event Action<IReadOnlyList<ComponentChangeRecord>>? OnBatch;

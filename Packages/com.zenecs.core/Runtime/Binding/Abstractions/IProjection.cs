@@ -17,7 +17,7 @@ namespace ZenECS.Core.Binding
     /// <summary>
     /// Performs a reconciliation step between ECS state and a view binder for an entity.
     /// </summary>
-    public interface IProjection
+    internal interface IProjection
     {
         /// <summary>
         /// Syncs world state for <paramref name="e"/> into <paramref name="v"/> using the provided resolver.

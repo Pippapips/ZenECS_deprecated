@@ -19,7 +19,7 @@ namespace ZenECS.Core.Binding
     /// <summary>
     /// Provides a minimal batching feed for component change events.
     /// </summary>
-    public interface IComponentChangeFeed
+    internal interface IComponentChangeFeed
     {
         /// <summary>Publishes a batch of component change records.</summary>
         void PublishBatch(IReadOnlyList<ComponentChangeRecord> records);

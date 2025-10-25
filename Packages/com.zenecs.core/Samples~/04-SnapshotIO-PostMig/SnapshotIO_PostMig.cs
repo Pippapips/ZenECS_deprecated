@@ -1,18 +1,54 @@
-﻿using System;
+﻿// ──────────────────────────────────────────────────────────────────────────────
+// ZenECS Core Samples 04 Snapshot IO + Post Migration
+// File: SnapshotIO_PostMig.cs
+// Purpose: Demonstrates snapshot save/load and post-load migration using the
+//          ZenECS serialization and migration pipeline.
+// Key concepts:
+//   • Binary snapshot save/load via SnapshotBackend
+//   • Versioned component migration (PositionV1 → PositionV2)
+//   • PostLoadMigration hook example
+//
+// Copyright (c) 2025 Pippapips Limited
+// License: MIT (https://opensource.org/licenses/MIT)
+// SPDX-License-Identifier: MIT
+// ──────────────────────────────────────────────────────────────────────────────
+using System;
 using System.IO;
+using System.Diagnostics;
+using System.Threading;
+using ZenECS;
 using ZenECS.Core;
-using ZenECS.Core.Extensions;
+using ZenECS.Core.Infrastructure;
 using ZenECS.Core.Serialization;
 using ZenECS.Core.Serialization.Formats.Binary;
+using ZenECS.Core.Systems;
 
 namespace ZenEcsCoreSamples.Snapshot
 {
-    // v1 Position component (for demo)
-    public struct PositionV1 { public float X, Y; public PositionV1(float x,float y){X=x;Y=y;} }
+    // ──────────────────────────────────────────────────────────────────────────
+    // Versioned Components
+    // ──────────────────────────────────────────────────────────────────────────
+    public readonly struct PositionV1
+    {
+        public readonly float X, Y;
+        public PositionV1(float x, float y) { X = x; Y = y; }
+        public override string ToString() => $"({X:0.##}, {Y:0.##})";
+    }
 
-    // v2 Position (renamed/changed shape) — target after migration
-    public struct PositionV2 { public float X, Y; public int Layer; public PositionV2(float x,float y,int layer=0){X=x;Y=y;Layer=layer;} }
+    public readonly struct PositionV2
+    {
+        public readonly float X, Y;
+        public readonly int Layer;
+        public PositionV2(float x, float y, int layer = 0)
+        {
+            X = x; Y = y; Layer = layer;
+        }
+        public override string ToString() => $"({X:0.##}, {Y:0.##}, layer:{Layer})";
+    }
 
+    // ──────────────────────────────────────────────────────────────────────────
+    // Binary Formatters
+    // ──────────────────────────────────────────────────────────────────────────
     public sealed class PositionV1Formatter : BinaryComponentFormatter<PositionV1>
     {
         public override void Write(in PositionV1 v, ISnapshotBackend b)
@@ -24,7 +60,6 @@ namespace ZenEcsCoreSamples.Snapshot
             => new PositionV1(b.ReadFloat(), b.ReadFloat());
     }
 
-    // Formatter for V2
     public sealed class PositionV2Formatter : BinaryComponentFormatter<PositionV2>
     {
         public override void Write(in PositionV2 v, ISnapshotBackend b)
@@ -37,46 +72,59 @@ namespace ZenEcsCoreSamples.Snapshot
             => new PositionV2(b.ReadFloat(), b.ReadFloat(), b.ReadInt());
     }
 
+    // ──────────────────────────────────────────────────────────────────────────
+    // Post-Load Migration
+    // ──────────────────────────────────────────────────────────────────────────
     public sealed class DemoPostLoadMigration : IPostLoadMigration
     {
         public int Order => 0;
+
         public void Run(World world)
         {
-            // If any entity still has PositionV1, convert to V2 and remove V1.
             foreach (var e in world.Query<PositionV1>())
             {
-                var p1 = world.Read<PositionV1>(e);
-                world.Replace(e, new PositionV2(p1.X, p1.Y, layer: 1));
+                var old = world.Read<PositionV1>(e);
+                world.Replace(e, new PositionV2(old.X, old.Y, layer: 1));
                 world.Remove<PositionV1>(e);
             }
         }
     }
 
-    public static class Program
+    // ──────────────────────────────────────────────────────────────────────────
+    // Systems
+    // ──────────────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Creates a snapshot in memory, reloads it into a new world, performs
+    /// migration (V1 → V2), and logs results.
+    /// </summary>
+    [SimulationGroup]
+    public sealed class SnapshotDemoSystem : IVariableRunSystem
     {
-        public static void Main()
+        private bool _done;
+
+        public void Run(World w)
         {
-            // Register StableIds & formatters (runtime)
+            if (_done) return;
+            Console.WriteLine("=== Snapshot I/O + Post-Migration Demo ===");
+
+            // Register StableIds & formatters at runtime
             ComponentRegistry.Register("com.zenecs.samples.position.v1", typeof(PositionV1));
             ComponentRegistry.Register("com.zenecs.samples.position.v2", typeof(PositionV2));
             ComponentRegistry.RegisterFormatter(new PositionV1Formatter(), "com.zenecs.samples.position.v1");
             ComponentRegistry.RegisterFormatter(new PositionV2Formatter(), "com.zenecs.samples.position.v2");
 
-            var world = new World(new WorldConfig(initialEntityCapacity: 8));
+            // Create data in V1
+            var e = w.CreateEntity();
+            w.Add(e, new PositionV1(3, 7));
 
-            // Create some data in V1
-            var e = world.CreateEntity();
-            world.Add(e, new PositionV1(3, 7));
-
-            // Save snapshot (binary) to memory stream
+            // Save snapshot (binary) into memory stream
             using var ms = new MemoryStream();
-            world.SaveFullSnapshotBinary(ms);
-
+            w.SaveFullSnapshotBinary(ms);
             Console.WriteLine($"Saved snapshot bytes: {ms.Length}");
 
-            // Load snapshot into a FRESH world
+            // Load snapshot into a NEW world
             var world2 = new World(new WorldConfig(initialEntityCapacity: 8));
-            // We need the same registry entries in world2 runtime
             ComponentRegistry.Register("com.zenecs.samples.position.v1", typeof(PositionV1));
             ComponentRegistry.Register("com.zenecs.samples.position.v2", typeof(PositionV2));
             ComponentRegistry.RegisterFormatter(new PositionV1Formatter(), "com.zenecs.samples.position.v1");
@@ -85,16 +133,86 @@ namespace ZenEcsCoreSamples.Snapshot
             ms.Position = 0;
             world2.LoadFullSnapshotBinary(ms);
 
-            // Post-migration
-            var mig = new DemoPostLoadMigration();
-            mig.Run(world2);
+            // Run migration
+            new DemoPostLoadMigration().Run(world2);
 
-            // Verify
+            // Verify results
             foreach (var e2 in world2.Query<PositionV2>())
             {
                 var p = world2.Read<PositionV2>(e2);
-                Console.WriteLine($"Migrated entity {e2.Id} => PositionV2({p.X},{p.Y},layer:{p.Layer})");
+                Console.WriteLine($"Migrated entity {e2.Id} → {p}");
             }
+
+            _done = true;
+        }
+    }
+
+    [PresentationGroup]
+    public sealed class PrintSummarySystem : IPresentationSystem
+    {
+        public void Run(World w, float alpha)
+        {
+            // read-only logging for demonstration
+            foreach (var e in w.Query<PositionV2>())
+            {
+                var p = w.Read<PositionV2>(e);
+                Console.WriteLine($"Frame {w.FrameCount} Entity {e.Id}: PositionV2={p}");
+            }
+        }
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // Program Entry
+    // ──────────────────────────────────────────────────────────────────────────
+    public static class Program
+    {
+        public static void Main()
+        {
+            Console.WriteLine("=== ZenECS Core Sample - SnapshotIO + PostMigration (Kernel) ===");
+
+            EcsKernel.Start(
+                new WorldConfig(initialEntityCapacity: 8),
+                new ISystem[]
+                {
+                    new SnapshotDemoSystem(),  // Simulation system that performs IO + migration
+                    new PrintSummarySystem(),  // Presentation system (read-only)
+                },
+                options: null,
+                mainThreadGate: null,
+                systemRunnerLog: Console.WriteLine,
+                configure: (world, bus) => { }
+            );
+
+            const float fixedDelta = 1f / 60f;
+            const int maxSubSteps = 4;
+
+            var sw = Stopwatch.StartNew();
+            double prev = sw.Elapsed.TotalSeconds;
+
+            Console.WriteLine("Running... press any key to exit.");
+
+            bool running = true;
+            while (running)
+            {
+                if (Console.KeyAvailable)
+                {
+                    _ = Console.ReadKey(intercept: true);
+                    running = false;
+                }
+
+                double now = sw.Elapsed.TotalSeconds;
+                float dt = (float)(now - prev);
+                prev = now;
+
+                EcsKernel.Pump(dt, fixedDelta, maxSubSteps, out var alpha);
+                EcsKernel.LateFrame(alpha);
+
+                Thread.Sleep(10);
+            }
+
+            Console.WriteLine("Shutting down...");
+            EcsKernel.Shutdown();
+            Console.WriteLine("Done.");
         }
     }
 }

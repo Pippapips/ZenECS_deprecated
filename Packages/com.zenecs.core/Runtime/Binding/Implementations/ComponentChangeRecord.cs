@@ -35,7 +35,7 @@ namespace ZenECS.Core.Binding
     /// <summary>
     /// Immutable record that captures which component on which entity changed and how.
     /// </summary>
-    public readonly struct ComponentChangeRecord
+    internal readonly struct ComponentChangeRecord
     {
         /// <summary>The target entity.</summary>
         public readonly Entity Entity;

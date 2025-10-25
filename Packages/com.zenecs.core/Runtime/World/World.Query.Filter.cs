@@ -1,4 +1,4 @@
-﻿// ──────────────────────────────────────────────────────────────────────────────
+﻿﻿// ──────────────────────────────────────────────────────────────────────────────
 // ZenECS Core — World subsystem
 // File: World.Query.Filter.cs
 // Purpose: Composable filter definitions for queries (include/exclude component sets).
@@ -10,7 +10,7 @@
 // Copyright (c) 2025 Pippapips Limited
 // License: MIT (https://opensource.org/licenses/MIT)
 // SPDX-License-Identifier: MIT
-// ──────────────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────-
 #nullable enable
 using System;
 using System.Collections.Concurrent;
@@ -40,38 +40,70 @@ namespace ZenECS.Core
         */
 
         /// <summary>
-        /// Clears the cached filter and mask data.
+        /// Clears all cached query filters and their resolved component pool masks.
         /// </summary>
+        /// <remarks>
+        /// Call this when component pools are rebuilt or the world is reset in a way that invalidates cached lookups.
+        /// </remarks>
         private void ResetQueryCaches()
         {
             filterCache?.Clear();
         }
 
         // ---------- Filter Key / Cache ----------
+
+        /// <summary>
+        /// Order-independent cache key for a composed filter.
+        /// </summary>
         internal struct FilterKey : System.IEquatable<FilterKey>
         {
+            /// <summary>Precomputed hash value representing the filter.</summary>
             public readonly ulong Hash;
+
+            /// <summary>Creates a new <see cref="FilterKey"/> with the given <paramref name="hash"/>.</summary>
             public FilterKey(ulong hash) { Hash = hash; }
 
+            /// <inheritdoc/>
             public bool Equals(FilterKey other) => Hash == other.Hash;
+            /// <inheritdoc/>
             public override bool Equals(object? obj) => obj is FilterKey fk && fk.Hash == Hash;
+            /// <inheritdoc/>
             public override int GetHashCode() => Hash.GetHashCode();
         }
 
+        /// <summary>
+        /// Resolved, pool-level representation of a filter used by the query engine.
+        /// </summary>
         internal sealed class ResolvedFilter
         {
+            /// <summary>Pools that must all be present on the entity.</summary>
             public IComponentPool[] withAll = Array.Empty<IComponentPool>();
+            /// <summary>Pools that must all be absent from the entity.</summary>
             public IComponentPool[] withoutAll = Array.Empty<IComponentPool>();
-            public IComponentPool[][] withAny = Array.Empty<IComponentPool[]>(); 
+            /// <summary>
+            /// Buckets where at least one pool in each bucket must be present (logical OR per bucket, AND across buckets).
+            /// </summary>
+            public IComponentPool[][] withAny = Array.Empty<IComponentPool[]>();
+            /// <summary>
+            /// Buckets where any present pool in a bucket causes exclusion (logical OR per bucket, AND across buckets).
+            /// </summary>
             public IComponentPool[][] withoutAny = Array.Empty<IComponentPool[]>();
         }
 
         /// <summary>
-        /// Filter cache based on pool/bucket key.
+        /// Filter cache keyed by <see cref="FilterKey"/> (computed from included/excluded component types).
         /// </summary>
         private readonly ConcurrentDictionary<FilterKey, ResolvedFilter> filterCache = new();
 
         // ---------- Filter DSL ----------
+
+        /// <summary>
+        /// Immutable value describing a query filter with include/exclude constraints.
+        /// </summary>
+        /// <remarks>
+        /// Use <see cref="Builder"/> via <see cref="New"/> to compose filters fluently,
+        /// then pass the result to <c>world.Query&lt;...>(filter)</c>.
+        /// </remarks>
         public readonly struct Filter
         {
             internal readonly Type[] withAll;
@@ -81,17 +113,23 @@ namespace ZenECS.Core
 
             internal Filter(Type[] wa, Type[] wo, Type[][] wan, Type[][] won)
             {
-                withAll = wa;
+                withAll   = wa;
                 withoutAll = wo;
-                withAny = wan;
+                withAny   = wan;
                 withoutAny = won;
             }
 
+            /// <summary>
+            /// Entry point for the fluent filter builder.
+            /// </summary>
             public static Builder New => default;
 
             /// <summary>
-            /// Builder used to fluently compose filters.
+            /// Fluent, immutable builder used to compose <see cref="Filter"/> instances.
             /// </summary>
+            /// <remarks>
+            /// Each method returns a new builder that includes the requested constraint; the original builder remains unchanged.
+            /// </remarks>
             public readonly struct Builder
             {
                 private readonly List<Type> wa;
@@ -99,18 +137,38 @@ namespace ZenECS.Core
                 private readonly List<List<Type>> wan;
                 private readonly List<List<Type>> won;
 
+                /// <summary>
+                /// Requires that entities include component <typeparamref name="T"/>.
+                /// </summary>
+                /// <typeparam name="T">Component value type.</typeparam>
+                /// <returns>A new builder with the constraint added.</returns>
                 public Builder With<T>() where T : struct => new(Append(wa, typeof(T)), wo, wan, won);
+
+                /// <summary>
+                /// Requires that entities exclude component <typeparamref name="T"/>.
+                /// </summary>
+                /// <typeparam name="T">Component value type.</typeparam>
+                /// <returns>A new builder with the constraint added.</returns>
                 public Builder Without<T>() where T : struct => new(wa, Append(wo, typeof(T)), wan, won);
 
                 /// <summary>
-                /// Logical OR group: passes if at least one of the specified types is present.
+                /// Adds a logical OR group: the entity passes if it contains <em>any one</em> of the specified types.
                 /// </summary>
+                /// <param name="types">One or more component types to OR together.</param>
+                /// <returns>A new builder with the constraint added.</returns>
                 public Builder WithAny(params Type[] types) => new(wa, wo, AppendBucket(wan, types), won);
+
                 /// <summary>
-                /// Logical OR group: fails if any of the specified types are present.
+                /// Adds a negative logical OR group: the entity fails if it contains <em>any one</em> of the specified types.
                 /// </summary>
+                /// <param name="types">One or more component types to OR together for exclusion.</param>
+                /// <returns>A new builder with the constraint added.</returns>
                 public Builder WithoutAny(params Type[] types) => new(wa, wo, wan, AppendBucket(won, types));
 
+                /// <summary>
+                /// Finalizes the builder into an immutable <see cref="Filter"/>.
+                /// </summary>
+                /// <returns>The composed filter.</returns>
                 public Filter Build()
                 {
                     return new Filter(
@@ -155,8 +213,10 @@ namespace ZenECS.Core
         }
 
         /// <summary>
-        /// Generates a hash key for the given filter (order-independent).
+        /// Computes an order-independent key for the given filter, suitable for caching.
         /// </summary>
+        /// <param name="f">The filter to hash.</param>
+        /// <returns>A stable <see cref="FilterKey"/>.</returns>
         internal static FilterKey MakeKey(in Filter f)
         {
             unchecked
@@ -192,8 +252,14 @@ namespace ZenECS.Core
         }
 
         /// <summary>
-        /// Resolves a filter into actual pool arrays and caches it.
+        /// Resolves a high-level <see cref="Filter"/> to concrete component pool references and caches the result.
         /// </summary>
+        /// <param name="f">The filter to resolve.</param>
+        /// <returns>A <see cref="ResolvedFilter"/> ready for fast evaluation.</returns>
+        /// <remarks>
+        /// If a referenced component type does not have a registered pool, the corresponding section becomes empty,
+        /// which may cause the filter to match no entities (for <c>With</c>/<c>WithAny</c>) or to skip checks.
+        /// </remarks>
         internal ResolvedFilter ResolveFilter(in Filter f)
         {
             var key = MakeKey(f);
@@ -248,8 +314,11 @@ namespace ZenECS.Core
         }
 
         /// <summary>
-        /// Determines whether the entity with the given id satisfies the filter conditions.
+        /// Tests whether the entity identified by <paramref name="id"/> satisfies the conditions of a resolved filter.
         /// </summary>
+        /// <param name="id">Internal entity id (index into component pools).</param>
+        /// <param name="r">Resolved filter to evaluate.</param>
+        /// <returns><see langword="true"/> if the entity matches; otherwise <see langword="false"/>.</returns>
         internal static bool MeetsFilter(int id, ResolvedFilter r)
         {
             // WithAll: must contain all

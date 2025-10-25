@@ -69,14 +69,16 @@ namespace ZenECS.Core.Systems
     /// Coordinates system execution per phase (FrameSetup, Simulation, Presentation)
     /// and manages lifecycle (Initialize / Shutdown).
     /// </summary>
-    public sealed class SystemRunner
+    internal sealed class SystemRunner
     {
-        public SystemRunnerOptions Options => _opt;
+        /// <summary>
+        /// Configuration for <see cref="SystemRunner"/> behavior.
+        /// </summary>
+        public SystemRunnerOptions Options { get; }
 
         private readonly World _w;
         private readonly IMessageBus _bus;
         private readonly SystemPlanner.Plan? _plan;
-        private readonly SystemRunnerOptions _opt;
 
         private bool _pendingFlush; // Indicates that a flush should occur at the next frame start
         private bool _started;
@@ -92,7 +94,7 @@ namespace ZenECS.Core.Systems
             _w = w ?? throw new ArgumentNullException(nameof(w));
             _bus = bus ?? new MessageBus();
             _plan = SystemPlanner.Build(systems, warn);
-            _opt = opt ?? new SystemRunnerOptions();
+            Options = opt ?? new SystemRunnerOptions();
         }
 
         /// <summary>
@@ -149,7 +151,7 @@ namespace ZenECS.Core.Systems
         public void BeginFrame(float deltaTime)
         {
             // Apply pending flush if policy dictates BeginOfNextFrame
-            if (_opt.FlushPolicy == StructuralFlushPolicy.BeginOfNextFrame && _pendingFlush)
+            if (Options.FlushPolicy == StructuralFlushPolicy.BeginOfNextFrame && _pendingFlush)
             {
                 _w.RunScheduledJobs();
                 _pendingFlush = false;
@@ -169,12 +171,12 @@ namespace ZenECS.Core.Systems
             RunGroup(SystemGroup.Simulation);
 
             // Barrier handling based on flush policy
-            if (_opt.FlushPolicy == StructuralFlushPolicy.EndOfSimulation)
+            if (Options.FlushPolicy == StructuralFlushPolicy.EndOfSimulation)
             {
                 // Standard position: flush before presentation
                 _w.RunScheduledJobs();
             }
-            else if (_opt.FlushPolicy == StructuralFlushPolicy.BeginOfNextFrame)
+            else if (Options.FlushPolicy == StructuralFlushPolicy.BeginOfNextFrame)
             {
                 // Defer flush until next frame
                 _pendingFlush = true;
@@ -186,7 +188,7 @@ namespace ZenECS.Core.Systems
         /// </summary>
         public void LateFrame(float interpolationAlpha = 1f)
         {
-            using IDisposable? guard = _opt.GuardWritesInPresentation ? DenyWrites(_w) : null;
+            using IDisposable? guard = Options.GuardWritesInPresentation ? DenyWrites(_w) : null;
             RunLateGroup(SystemGroup.Presentation);
 
             _w.FrameCount++;

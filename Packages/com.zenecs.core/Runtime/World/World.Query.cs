@@ -1,4 +1,4 @@
-﻿// ──────────────────────────────────────────────────────────────────────────────
+﻿﻿// ──────────────────────────────────────────────────────────────────────────────
 // ZenECS Core — World subsystem
 // File: World.Query.cs
 // Purpose: Query builder and iterator for ref-based component enumeration.
@@ -9,7 +9,7 @@
 // Copyright (c) 2025 Pippapips Limited
 // License: MIT (https://opensource.org/licenses/MIT)
 // SPDX-License-Identifier: MIT
-// ──────────────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────-
 #nullable enable
 using System;
 using System.Collections.Generic;
@@ -21,8 +21,12 @@ namespace ZenECS.Core
     {
         /// <summary>
         /// Selects a seed pool — the smallest non-empty pool among the given ones.
-        /// This reduces iteration cost by minimizing the initial candidate set.
+        /// Choosing the smallest pool minimizes the initial candidate set for iteration.
         /// </summary>
+        /// <param name="arr">Candidate component pools (some may be <see langword="null"/>).</param>
+        /// <returns>
+        /// The smallest non-empty pool to iterate first; <see langword="null"/> if all are <see langword="null"/>.
+        /// </returns>
         private static IComponentPool? Seed(params IComponentPool?[] arr)
         {
             IComponentPool? best = null;
@@ -42,22 +46,61 @@ namespace ZenECS.Core
             return hasAny ? best : null;
         }
 
+        // ==============================
+        // Query factories for 1–8 types
+        // ==============================
+
         /// <summary>
-        /// Query factories for 1–8 component types.
+        /// Creates an enumerable that yields entities containing component <typeparamref name="T1"/>.
         /// </summary>
+        /// <typeparam name="T1">Component value type.</typeparam>
+        /// <param name="f">Optional <see cref="Filter"/> to constrain the result set.</param>
+        /// <returns>Type-safe query enumerable.</returns>
         public QueryEnumerable<T1> Query<T1>(Filter f = default) where T1 : struct => new(this, f);
+
+        /// <summary>
+        /// Creates an enumerable that yields entities containing components <typeparamref name="T1"/> and <typeparamref name="T2"/>.
+        /// </summary>
+        /// <typeparam name="T1">First component value type.</typeparam>
+        /// <typeparam name="T2">Second component value type.</typeparam>
+        /// <param name="f">Optional <see cref="Filter"/> to constrain the result set.</param>
+        /// <returns>Type-safe query enumerable.</returns>
         public QueryEnumerable<T1, T2> Query<T1, T2>(Filter f = default)
             where T1 : struct where T2 : struct => new(this, f);
+
+        /// <summary>
+        /// Creates an enumerable that yields entities containing components <typeparamref name="T1"/>, <typeparamref name="T2"/>, and <typeparamref name="T3"/>.
+        /// </summary>
         public QueryEnumerable<T1, T2, T3> Query<T1, T2, T3>(Filter f = default)
             where T1 : struct where T2 : struct where T3 : struct => new(this, f);
+
+        /// <summary>
+        /// Creates an enumerable that yields entities containing components <typeparamref name="T1"/>…<typeparamref name="T4"/>.
+        /// </summary>
         public QueryEnumerable<T1, T2, T3, T4> Query<T1, T2, T3, T4>(Filter f = default)
             where T1 : struct where T2 : struct where T3 : struct where T4 : struct => new(this, f);
+
+        /// <summary>
+        /// Creates an enumerable that yields entities containing components <typeparamref name="T1"/>…<typeparamref name="T5"/>.
+        /// </summary>
         public QueryEnumerable<T1, T2, T3, T4, T5> Query<T1, T2, T3, T4, T5>(Filter f = default)
             where T1 : struct where T2 : struct where T3 : struct where T4 : struct where T5 : struct => new(this, f);
+
+        /// <summary>
+        /// Creates an enumerable that yields entities containing components <typeparamref name="T1"/>…<typeparamref name="T6"/>.
+        /// </summary>
         public QueryEnumerable<T1, T2, T3, T4, T5, T6> Query<T1, T2, T3, T4, T5, T6>(Filter f = default)
             where T1 : struct where T2 : struct where T3 : struct where T4 : struct where T5 : struct where T6 : struct => new(this, f);
+
+        /// <summary>
+        /// Creates an enumerable that yields entities containing components <typeparamref name="T1"/>…<typeparamref name="T7"/>.
+        /// </summary>
         public QueryEnumerable<T1, T2, T3, T4, T5, T6, T7> Query<T1, T2, T3, T4, T5, T6, T7>(Filter f = default)
             where T1 : struct where T2 : struct where T3 : struct where T4 : struct where T5 : struct where T6 : struct where T7 : struct => new(this, f);
+
+        /// <summary>
+        /// Creates an enumerable that yields entities containing components <typeparamref name="T1"/>…<typeparamref name="T8"/>.
+        /// </summary>
         public QueryEnumerable<T1, T2, T3, T4, T5, T6, T7, T8> Query<T1, T2, T3, T4, T5, T6, T7, T8>(Filter f = default)
             where T1 : struct where T2 : struct where T3 : struct where T4 : struct
             where T5 : struct where T6 : struct where T7 : struct where T8 : struct => new(this, f);
@@ -65,13 +108,23 @@ namespace ZenECS.Core
         // ========== Enumerables ==========
         // Each struct below provides a type-safe query enumerator that yields entities matching all component constraints and filters.
 
+        /// <summary>
+        /// Enumerable over entities matching component <typeparamref name="T1"/> and an optional <see cref="Filter"/>.
+        /// </summary>
+        /// <typeparam name="T1">Component value type.</typeparam>
         public struct QueryEnumerable<T1> where T1 : struct
         {
             private readonly World _w;
             private readonly Filter _f;
+
             internal QueryEnumerable(World w, Filter f) { this._w = w; this._f = f; }
+
+            /// <summary>Gets the value-type enumerator.</summary>
             public Enumerator GetEnumerator() => new(_w, _f);
 
+            /// <summary>
+            /// Value-type enumerator that streams matching entities without allocations.
+            /// </summary>
             public struct Enumerator
             {
                 private readonly World _w;
@@ -80,6 +133,11 @@ namespace ZenECS.Core
                 private readonly IEnumerator<(int id, object boxed)> _it;
                 private Entity _cur;
 
+                /// <summary>
+                /// Initializes the enumerator for a given world and filter.
+                /// </summary>
+                /// <param name="w">Target world.</param>
+                /// <param name="f">Filter to apply.</param>
                 public Enumerator(World w, Filter f)
                 {
                     this._w = w;
@@ -90,8 +148,13 @@ namespace ZenECS.Core
                     _cur = default;
                 }
 
+                /// <summary>The current entity.</summary>
                 public Entity Current => _cur;
 
+                /// <summary>
+                /// Advances to the next matching entity.
+                /// </summary>
+                /// <returns><see langword="true"/> if an entity is available; otherwise <see langword="false"/>.</returns>
                 public bool MoveNext()
                 {
                     while (_it.MoveNext())
@@ -111,14 +174,21 @@ namespace ZenECS.Core
         // Similar pattern repeats for T1–T8 combinations.
         // Each Enumerator iterates over the smallest pool and filters by Has<T> and user-defined filters.
 
+        /// <summary>
+        /// Enumerable over entities matching components <typeparamref name="T1"/> and <typeparamref name="T2"/>.
+        /// </summary>
         public struct QueryEnumerable<T1, T2>
             where T1 : struct where T2 : struct
         {
             private readonly World _w;
             private readonly Filter _f;
+
             internal QueryEnumerable(World w, Filter f) { this._w = w; this._f = f; }
+
+            /// <summary>Gets the value-type enumerator.</summary>
             public Enumerator GetEnumerator() => new(_w, _f);
 
+            /// <summary>Value-type enumerator for entities with <typeparamref name="T1"/> and <typeparamref name="T2"/>.</summary>
             public struct Enumerator
             {
                 private readonly World _w;
@@ -127,6 +197,7 @@ namespace ZenECS.Core
                 private readonly IEnumerator<(int id, object boxed)> it;
                 private Entity _cur;
 
+                /// <summary>Initializes the enumerator for a given world and filter.</summary>
                 public Enumerator(World w, Filter f)
                 {
                     this._w = w;
@@ -138,8 +209,10 @@ namespace ZenECS.Core
                     _cur = default;
                 }
 
+                /// <summary>The current entity.</summary>
                 public Entity Current => _cur;
 
+                /// <summary>Advances to the next matching entity.</summary>
                 public bool MoveNext()
                 {
                     while (it.MoveNext())
@@ -156,20 +229,25 @@ namespace ZenECS.Core
             }
         }
 
+        /// <summary>Enumerable over entities matching components <typeparamref name="T1"/>, <typeparamref name="T2"/>, <typeparamref name="T3"/>.</summary>
         public struct QueryEnumerable<T1, T2, T3>
             where T1 : struct where T2 : struct where T3 : struct
         {
             private readonly World _w;
             private readonly Filter _f;
+
             internal QueryEnumerable(World w, Filter f) { this._w = w; this._f = f; }
+            /// <summary>Gets the value-type enumerator.</summary>
             public Enumerator GetEnumerator() => new(_w, _f);
 
+            /// <summary>Value-type enumerator for entities with the required components.</summary>
             public struct Enumerator
             {
                 private readonly World _w;
                 private readonly IComponentPool? _a, _b, _c; private readonly ResolvedFilter _rf;
                 private readonly IEnumerator<(int id, object boxed)> it; private Entity _cur;
 
+                /// <summary>Initializes the enumerator for a given world and filter.</summary>
                 public Enumerator(World w, Filter f)
                 {
                     this._w = w;
@@ -179,8 +257,10 @@ namespace ZenECS.Core
                     _cur = default;
                 }
 
+                /// <summary>The current entity.</summary>
                 public Entity Current => _cur;
 
+                /// <summary>Advances to the next matching entity.</summary>
                 public bool MoveNext()
                 {
                     while (it.MoveNext())
@@ -194,19 +274,23 @@ namespace ZenECS.Core
             }
         }
 
+        /// <summary>Enumerable over entities matching components <typeparamref name="T1"/>…<typeparamref name="T4"/>.</summary>
         public struct QueryEnumerable<T1, T2, T3, T4>
             where T1 : struct where T2 : struct where T3 : struct where T4 : struct
         {
             private readonly World _w; private readonly Filter _f;
             internal QueryEnumerable(World w, Filter f) { this._w = w; this._f = f; }
+            /// <summary>Gets the value-type enumerator.</summary>
             public Enumerator GetEnumerator() => new(_w, _f);
 
+            /// <summary>Value-type enumerator for entities with the required components.</summary>
             public struct Enumerator
             {
                 private readonly World _w;
                 private readonly IComponentPool? _a, _b, _c, _d; private readonly ResolvedFilter _rf;
                 private readonly IEnumerator<(int id, object boxed)> it; private Entity _cur;
 
+                /// <summary>Initializes the enumerator for a given world and filter.</summary>
                 public Enumerator(World w, Filter f)
                 {
                     this._w = w;
@@ -216,8 +300,10 @@ namespace ZenECS.Core
                     _cur = default;
                 }
 
+                /// <summary>The current entity.</summary>
                 public Entity Current => _cur;
 
+                /// <summary>Advances to the next matching entity.</summary>
                 public bool MoveNext()
                 {
                     while (it.MoveNext())
@@ -232,19 +318,23 @@ namespace ZenECS.Core
             }
         }
 
+        /// <summary>Enumerable over entities matching components <typeparamref name="T1"/>…<typeparamref name="T5"/>.</summary>
         public struct QueryEnumerable<T1, T2, T3, T4, T5>
             where T1 : struct where T2 : struct where T3 : struct where T4 : struct where T5 : struct
         {
             private readonly World _w; private readonly Filter _f;
             internal QueryEnumerable(World w, Filter f) { this._w = w; this._f = f; }
+            /// <summary>Gets the value-type enumerator.</summary>
             public Enumerator GetEnumerator() => new(_w, _f);
 
+            /// <summary>Value-type enumerator for entities with the required components.</summary>
             public struct Enumerator
             {
                 private readonly World _w;
                 private readonly IComponentPool? _a, _b, _c, _d, _e; private readonly ResolvedFilter _rf;
                 private readonly IEnumerator<(int id, object boxed)> it; private Entity _cur;
 
+                /// <summary>Initializes the enumerator for a given world and filter.</summary>
                 public Enumerator(World w, Filter f)
                 {
                     this._w = w;
@@ -255,8 +345,10 @@ namespace ZenECS.Core
                     _cur = default;
                 }
 
+                /// <summary>The current entity.</summary>
                 public Entity Current => _cur;
 
+                /// <summary>Advances to the next matching entity.</summary>
                 public bool MoveNext()
                 {
                     while (it.MoveNext())
@@ -272,19 +364,23 @@ namespace ZenECS.Core
             }
         }
 
+        /// <summary>Enumerable over entities matching components <typeparamref name="T1"/>…<typeparamref name="T6"/>.</summary>
         public struct QueryEnumerable<T1, T2, T3, T4, T5, T6>
             where T1 : struct where T2 : struct where T3 : struct where T4 : struct where T5 : struct where T6 : struct
         {
             private readonly World _w; private readonly Filter _f;
             internal QueryEnumerable(World w, Filter f) { this._w = w; this._f = f; }
+            /// <summary>Gets the value-type enumerator.</summary>
             public Enumerator GetEnumerator() => new(_w, _f);
 
+            /// <summary>Value-type enumerator for entities with the required components.</summary>
             public struct Enumerator
             {
                 private readonly World _w;
                 private readonly IComponentPool? _a, _b, _c, _d, _e, _f6; private readonly ResolvedFilter _rf;
                 private readonly IEnumerator<(int id, object boxed)> it; private Entity _cur;
 
+                /// <summary>Initializes the enumerator for a given world and filter.</summary>
                 public Enumerator(World w, Filter f)
                 {
                     this._w = w;
@@ -295,8 +391,10 @@ namespace ZenECS.Core
                     _cur = default;
                 }
 
+                /// <summary>The current entity.</summary>
                 public Entity Current => _cur;
 
+                /// <summary>Advances to the next matching entity.</summary>
                 public bool MoveNext()
                 {
                     while (it.MoveNext())
@@ -312,19 +410,23 @@ namespace ZenECS.Core
             }
         }
 
+        /// <summary>Enumerable over entities matching components <typeparamref name="T1"/>…<typeparamref name="T7"/>.</summary>
         public struct QueryEnumerable<T1, T2, T3, T4, T5, T6, T7>
             where T1 : struct where T2 : struct where T3 : struct where T4 : struct where T5 : struct where T6 : struct where T7 : struct
         {
             private readonly World _w; private readonly Filter _f;
             internal QueryEnumerable(World w, Filter f) { this._w = w; this._f = f; }
+            /// <summary>Gets the value-type enumerator.</summary>
             public Enumerator GetEnumerator() => new(_w, _f);
 
+            /// <summary>Value-type enumerator for entities with the required components.</summary>
             public struct Enumerator
             {
                 private readonly World _w;
                 private readonly IComponentPool? _a, _b, _c, _d, _e, _f6, _g; private readonly ResolvedFilter _rf;
                 private readonly IEnumerator<(int id, object boxed)> it; private Entity _cur;
 
+                /// <summary>Initializes the enumerator for a given world and filter.</summary>
                 public Enumerator(World w, Filter f)
                 {
                     this._w = w;
@@ -335,8 +437,10 @@ namespace ZenECS.Core
                     _cur = default;
                 }
 
+                /// <summary>The current entity.</summary>
                 public Entity Current => _cur;
 
+                /// <summary>Advances to the next matching entity.</summary>
                 public bool MoveNext()
                 {
                     while (it.MoveNext())
@@ -353,19 +457,23 @@ namespace ZenECS.Core
             }
         }
 
+        /// <summary>Enumerable over entities matching components <typeparamref name="T1"/>…<typeparamref name="T8"/>.</summary>
         public struct QueryEnumerable<T1, T2, T3, T4, T5, T6, T7, T8>
             where T1 : struct where T2 : struct where T3 : struct where T4 : struct where T5 : struct where T6 : struct where T7 : struct where T8 : struct
         {
             private readonly World _w; private readonly Filter _f;
             internal QueryEnumerable(World w, Filter f) { this._w = w; this._f = f; }
+            /// <summary>Gets the value-type enumerator.</summary>
             public Enumerator GetEnumerator() => new(_w, _f);
 
+            /// <summary>Value-type enumerator for entities with the required components.</summary>
             public struct Enumerator
             {
                 private readonly World _w;
                 private readonly IComponentPool? _a, _b, _c, _d, _e, _f6, _g, _h; private readonly ResolvedFilter _rf;
                 private readonly IEnumerator<(int id, object boxed)> it; private Entity _cur;
 
+                /// <summary>Initializes the enumerator for a given world and filter.</summary>
                 public Enumerator(World w, Filter f)
                 {
                     this._w = w;
@@ -376,8 +484,10 @@ namespace ZenECS.Core
                     _cur = default;
                 }
 
+                /// <summary>The current entity.</summary>
                 public Entity Current => _cur;
 
+                /// <summary>Advances to the next matching entity.</summary>
                 public bool MoveNext()
                 {
                     while (it.MoveNext())
@@ -395,6 +505,9 @@ namespace ZenECS.Core
             }
         }
 
+        /// <summary>
+        /// Returns an empty sequence for use when no seed pool is available.
+        /// </summary>
         private static IEnumerable<(int, object)> Empty() { yield break; }
     }
 }

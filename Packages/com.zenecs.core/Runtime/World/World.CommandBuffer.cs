@@ -1,4 +1,4 @@
-﻿// ──────────────────────────────────────────────────────────────────────────────
+﻿﻿// ──────────────────────────────────────────────────────────────────────────────
 // ZenECS Core — World subsystem
 // File: World.CommandBuffer.cs
 // Purpose: Thread-safe command buffer for deferred or immediate structural changes.
@@ -9,10 +9,9 @@
 // Copyright (c) 2025 Pippapips Limited
 // License: MIT (https://opensource.org/licenses/MIT)
 // SPDX-License-Identifier: MIT
-// ──────────────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────-
 #nullable enable
 using System.Collections.Concurrent;
-using ZenECS.Core.Extensions;
 
 namespace ZenECS.Core
 {
@@ -25,25 +24,40 @@ namespace ZenECS.Core
         // world.Schedule(cb);     // Applied at the frame barrier when world.RunScheduledJobs() is called
         // Or call world.EndWrite(cb); to apply immediately.
 
-        /// <summary>Write-scope apply policy.</summary>
+        /// <summary>
+        /// Controls how a <see cref="CommandBuffer"/> is applied when disposed or explicitly flushed.
+        /// </summary>
         public enum ApplyMode
         {
             /// <summary>
-            /// On dispose, enqueue into the scheduler and apply at the frame barrier.
+            /// Queue this buffer to be applied at the next frame barrier.
+            /// Use for background threads or when you want deterministic, batched commits.
             /// </summary>
             Schedule = 0,
 
             /// <summary>
-            /// On dispose, apply immediately (recommended from the main thread).
+            /// Apply this buffer immediately on dispose (or when explicitly ended).
+            /// Recommended from the main thread only, to minimize contention.
             /// </summary>
             Immediate = 1,
         }
 
         /// <summary>
-        /// Thread-safe command buffer.
-        /// Can be applied via EndWrite(cb) or Schedule(cb).
-        /// Also supports the using pattern with BeginWrite(...).
+        /// Thread-safe buffer of structural ECS operations (Add/Replace/Remove/Destroy) that can be
+        /// applied later as a job (scheduled) or flushed immediately on the main thread.
         /// </summary>
+        /// <remarks>
+        /// <para>
+        /// Use <see cref="BeginWrite(ApplyMode)"/> to obtain a buffer. Enqueue operations via
+        /// <see cref="Add{T}(Entity, in T)"/>, <see cref="Replace{T}(Entity, in T)"/>,
+        /// <see cref="Remove{T}(Entity)"/>, and <see cref="Destroy(Entity)"/>.
+        /// </para>
+        /// <para>
+        /// When the buffer is disposed, it is either scheduled or immediately applied depending on the
+        /// <see cref="ApplyMode"/> it was created with. You can also explicitly call
+        /// <see cref="World.EndWrite(CommandBuffer)"/> or <see cref="World.Schedule(CommandBuffer?)"/>.
+        /// </para>
+        /// </remarks>
         public sealed class CommandBuffer : IJob, System.IDisposable
         {
             internal readonly ConcurrentQueue<IOp> q = new();
@@ -52,8 +66,17 @@ namespace ZenECS.Core
             private World? _boundWorld;
             private ApplyMode _mode;
             private bool _disposed;
+
+            /// <summary>
+            /// The world this buffer is currently bound to (set by <see cref="BeginWrite(ApplyMode)"/>).
+            /// May be <see langword="null"/> after <see cref="Dispose"/> is called.
+            /// </summary>
             public World? WorldRef => _boundWorld;
 
+            /// <summary>
+            /// Binds this buffer to a specific <see cref="World"/> and applies the given <see cref="ApplyMode"/>.
+            /// Intended for internal use by <see cref="World.BeginWrite(ApplyMode)"/>.
+            /// </summary>
             internal void Bind(World w, ApplyMode mode)
             {
                 _boundWorld = w;
@@ -61,6 +84,15 @@ namespace ZenECS.Core
                 _disposed = false;
             }
 
+            /// <summary>
+            /// Disposes the buffer and either schedules or immediately applies it according to the
+            /// <see cref="ApplyMode"/> that was used at creation time.
+            /// </summary>
+            /// <remarks>
+            /// Buffers created via <see cref="World.BeginWrite(ApplyMode)"/> are auto-applied on dispose.
+            /// Buffers created manually should be applied via <see cref="World.EndWrite(CommandBuffer)"/> or
+            /// <see cref="World.Schedule(CommandBuffer?)"/>.
+            /// </remarks>
             public void Dispose()
             {
                 if (_disposed) return;
@@ -78,10 +110,54 @@ namespace ZenECS.Core
                     w.Schedule(this); // Apply at the barrier
             }
 
+            /// <summary>
+            /// Internal operation contract implemented by each queued structural change.
+            /// </summary>
             internal interface IOp
             {
+                /// <summary>
+                /// Applies the operation against the provided <see cref="World"/>.
+                /// Implementations should guard against dead entities.
+                /// </summary>
                 void Apply(World w);
-            } // Guarding dead entities is handled inside each Op.
+            }
+
+            /// <summary>
+            /// Enqueues an Add component operation for the given entity.
+            /// </summary>
+            /// <typeparam name="T">Component value type.</typeparam>
+            /// <param name="e">Target entity.</param>
+            /// <param name="v">Component value to add.</param>
+            public void Add<T>(Entity e, in T v) where T : struct => q.Enqueue(new AddOp<T>(e, v));
+
+            /// <summary>
+            /// Enqueues a Replace component operation for the given entity.
+            /// </summary>
+            /// <typeparam name="T">Component value type.</typeparam>
+            /// <param name="e">Target entity.</param>
+            /// <param name="v">New component value.</param>
+            public void Replace<T>(Entity e, in T v) where T : struct => q.Enqueue(new ReplaceOp<T>(e, v));
+
+            /// <summary>
+            /// Enqueues a Remove component operation for the given entity.
+            /// </summary>
+            /// <typeparam name="T">Component value type.</typeparam>
+            /// <param name="e">Target entity.</param>
+            public void Remove<T>(Entity e) where T : struct => q.Enqueue(new RemoveOp<T>(e));
+
+            /// <summary>
+            /// Enqueues a Destroy entity operation.
+            /// </summary>
+            /// <param name="e">The entity to destroy.</param>
+            public void Destroy(Entity e) => q.Enqueue(new DestroyOp(e));
+
+            // IJob: integration with the world's scheduler
+            void World.IJob.Execute(World w)
+            {
+                while (q.TryDequeue(out var op)) op.Apply(w);
+            }
+
+            // ----- Concrete ops ---------------------------------------------------------
 
             sealed class AddOp<T> : IOp where T : struct
             {
@@ -157,27 +233,24 @@ namespace ZenECS.Core
                     w.DestroyEntity(e);
                 }
             }
-
-            // Enqueue operations
-            public void Add<T>(Entity e, in T v) where T : struct => q.Enqueue(new AddOp<T>(e, v));
-            public void Replace<T>(Entity e, in T v) where T : struct => q.Enqueue(new ReplaceOp<T>(e, v));
-            public void Remove<T>(Entity e) where T : struct => q.Enqueue(new RemoveOp<T>(e));
-            public void Destroy(Entity e) => q.Enqueue(new DestroyOp(e));
-
-            // IJob: integration with the world's scheduler
-            void World.IJob.Execute(World w)
-            {
-                while (q.TryDequeue(out var op)) op.Apply(w);
-            }
         }
 
         /// <summary>
-        /// Begins a command-buffer write scope. Supports the using pattern:
-        /// <code>
-        /// using (var cb = world.BeginWrite()) { ... }                    // Applies on Dispose via Schedule
-        /// using (var cb = world.BeginWrite(ApplyMode.Immediate)) { ... } // Applies on Dispose immediately
-        /// </code>
+        /// Begins a command-buffer write scope.
         /// </summary>
+        /// <param name="mode">
+        /// Application mode that determines what happens on <see cref="CommandBuffer.Dispose"/>:
+        /// <see cref="ApplyMode.Schedule"/> (default) queues the buffer to apply at the frame barrier, while
+        /// <see cref="ApplyMode.Immediate"/> applies instantly.
+        /// </param>
+        /// <returns>A new <see cref="CommandBuffer"/> bound to this world.</returns>
+        /// <remarks>
+        /// Supports the <c>using</c> pattern:
+        /// <code>
+        /// using (var cb = world.BeginWrite()) { /* enqueue ops */ }                    // Applies on Dispose via Schedule
+        /// using (var cb = world.BeginWrite(ApplyMode.Immediate)) { /* enqueue ops */ } // Applies on Dispose immediately
+        /// </code>
+        /// </remarks>
         public CommandBuffer BeginWrite(ApplyMode mode = ApplyMode.Schedule)
         {
             var cb = new CommandBuffer();
@@ -186,8 +259,14 @@ namespace ZenECS.Core
         }
 
         /// <summary>
-        /// Applies commands collected on another thread immediately (recommended to call on the main thread).
+        /// Applies all queued operations in the specified <paramref name="cb"/> immediately.
         /// </summary>
+        /// <param name="cb">The command buffer to flush. If <see langword="null"/>, no work is performed.</param>
+        /// <returns>The number of operations applied.</returns>
+        /// <remarks>
+        /// This method is typically called on the main thread. For deferred application,
+        /// see <see cref="Schedule(CommandBuffer?)"/>.
+        /// </remarks>
         public int EndWrite(CommandBuffer cb)
         {
             if (cb == null) return 0;
@@ -201,8 +280,9 @@ namespace ZenECS.Core
         }
 
         /// <summary>
-        /// Enqueues the command buffer into the scheduler to be applied at the next frame barrier.
+        /// Enqueues the given <paramref name="cb"/> to be executed at the next frame barrier via the world's scheduler.
         /// </summary>
+        /// <param name="cb">The command buffer to schedule. If <see langword="null"/>, the call is ignored.</param>
         public void Schedule(CommandBuffer? cb)
         {
             if (cb != null)
@@ -211,13 +291,21 @@ namespace ZenECS.Core
             }
         }
 
-        // Example: if you maintain frame-local/deferred command buffers, clear them here.
+        /// <summary>
+        /// Clears any frame-local/deferred command buffers by flushing the world's scheduled jobs queue.
+        /// </summary>
         private void ClearAllCommandBuffers()
         {
             ClearAllScheduledJobs();
         }
 
-        // Optional: customize flush/drop policy on Reset; here we flush scheduled jobs when capacity will be rebuilt.
+        /// <summary>
+        /// Hook executed before <see cref="World.Reset(bool)"/>. When capacity will be rebuilt,
+        /// this flushes scheduled jobs to avoid dropping queued operations.
+        /// </summary>
+        /// <param name="keepCapacity">
+        /// <see langword="true"/> to keep current capacities; <see langword="false"/> to rebuild.
+        /// </param>
         partial void OnBeforeWorldReset(bool keepCapacity)
         {
             if (!keepCapacity) RunScheduledJobs();

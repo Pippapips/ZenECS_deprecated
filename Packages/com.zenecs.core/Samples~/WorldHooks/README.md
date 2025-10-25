@@ -1,151 +1,191 @@
-# 🧩 ZenECS World Hooks System
+# ZenECS Core — Sample 06: World Hooks (Kernel)
 
-월드 단위에서 ECS의 접근(읽기/쓰기/검증)을 동적으로 제어하는 훅 시스템입니다.  
-툴링, 네트워크, AI, 서버 밸리데이션 등에서 **데이터 접근 정책**을 손쉽게 주입할 수 있습니다.
+A **console** sample demonstrating **per-world hooks** in ZenECS:
+how to restrict read/write access and validate component data dynamically at runtime.
 
----
+* Component: `Mana`
+* Systems:
 
-## 🎯 핵심 목적
+    * `WorldHooksDemoSystem : IVariableRunSystem` — installs read/write hooks, validators, and tests them
+    * `PrintSummarySystem : IPresentationSystem` — read-only Late system for final state logging
+* Kernel loop:
 
-| 기능 | 설명 |
-|------|------|
-| **쓰기 제어** | 엔티티, 타입, 상황에 따라 Add/Replace/Remove 금지 |
-| **읽기 제어** | 민감한 데이터의 Read/TryRead 차단 |
-| **값 검증** | Add/Replace 시 값 유효성 검사 |
-| **동적 변경** | 런타임 중 훅 추가/제거(Clear/Remove) 가능 |
-
----
-
-## 🔩 훅 종류
-
-| Hook 종류 | 시그니처 | 설명 |
-|------------|-----------|------|
-| `WritePermissionHook` | `(World, Entity, Type) → bool` | Add / Replace / Remove 시 쓰기 허용 여부 |
-| `ReadPermissionHook` | `(World, Entity, Type) → bool` | Read / TryRead 시 읽기 허용 여부 (`Has<T>()` 제외) |
-| `ValidatorHook` | `(object) → bool` | 모든 타입 공통 값 검증 |
-| `TypedValidator<T>` | `(T) → bool` | 타입별 전용 값 검증 (무박싱) |
+    * `EcsKernel.Start(...)` registers systems
+    * `Pump()` performs variable + fixed-step updates
+    * `LateFrame()` runs presentation systems (read-only)
 
 ---
 
-## 🧱 훅 관리 API
+## What this sample shows
 
-### ✏️ 쓰기 권한
-```csharp
-world.AddWritePermission((w, e, t) => (e.Id % 2) == 0); // 짝수 ID만 허용
-world.RemoveWritePermission(token);
-world.ClearWritePermissions();
-````
+1. **Write permissions**
+   Restricts which entities/types can be written.
+   Example: only **even entity IDs** can be written.
 
-### 👀 읽기 권한
+2. **Validators**
+   Ensures component data meets defined conditions.
+   Example: `Mana.Value >= 0` must hold true for all writes.
 
-```csharp
-world.AddReadPermission((w, e, t) => t == typeof(Mana));
-world.RemoveReadPermission(token);
-world.ClearReadPermissions();
+3. **Read permissions**
+   Controls which components can be read by the world.
+   Example: only `Mana` type is readable — all others denied.
+
+4. **Hook cleanup**
+   Hooks can be removed dynamically to restore unrestricted world behavior.
+
+---
+
+## TL;DR flow
+
 ```
+WritePermission: (EntityId % 2 == 0)
+Validator: Mana.Value >= 0
+ReadPermission: type == Mana
 
-### ✅ 값 검증 (공통)
-
-```csharp
-world.AddValidator(o => o != null);
-world.RemoveValidator(o => o != null);
-world.ClearValidators();
-```
-
-### 🧬 타입별 검증 (Generic)
-
-```csharp
-world.AddValidator<Mana>(m => m.Value >= 0);
-world.RemoveValidator<Mana>(m => m.Value >= 0);
-world.ClearTypedValidators();
+→ Add e1(Mana=10)  → denied (odd id)
+→ Add e2(Mana=-10) → denied (invalid)
+→ Add e2(Mana=5)   → OK
+→ Read e2(Mana)    → allowed
+→ Remove all hooks → unrestricted again
 ```
 
 ---
 
-## ⚙️ 내부 동작
+## File layout
 
-### Add / Replace / Remove
-
-1. `EcsActions.Add/Replace/Remove` 호출
-2. `EvaluateWritePermission` → false면 차단
-3. `ValidateTyped` → false면 차단
-4. `ValidateObject` → false면 차단
-5. 성공 시 내부 풀 반영 및 이벤트 발행
-
-### Read / TryRead
-
-1. `EvaluateReadPermission` → false면 차단
-2. 정책(`EcsRuntimeOptions.ReadPolicy`) 적용
-3. 통과 시 `ref readonly` 반환
-
----
-
-## 💥 실패 정책 (`EcsRuntimeOptions`)
-
-모든 거부·검증 실패는 정책에 따라 처리됩니다.
-
-```csharp
-EcsRuntimeOptions.WritePolicy = EcsRuntimeOptions.WriteFailurePolicy.Log;
-EcsRuntimeOptions.Log = static msg => Debug.LogWarning($"[ZenECS] {msg}");
+```
+WorldHook.cs
 ```
 
-| 정책       | 설명              |
-| -------- | --------------- |
-| `Throw`  | 예외 발생 (개발/테스트용) |
-| `Log`    | 로그 후 무시 (운영용)   |
-| `Silent` | 아무 처리 없이 무시     |
+Key excerpts:
 
----
-
-## 🧭 설계 원칙
-
-| 원칙                  | 설명                              |
-| ------------------- | ------------------------------- |
-| **World 단위 제어**     | 훅은 항상 World 인스턴스에 귀속됨           |
-| **단방향 데이터 흐름**      | 훅은 “데이터 → 로직”으로만 영향을 줌          |
-| **AND 조건 평가**       | 여러 훅 등록 시, 모두 true일 때만 허용       |
-| **리스트 기반 구조**       | Add/Remove/Clear가 쉬움 (람다 체인 아님) |
-| **ref readonly 보장** | 읽기용 컴포넌트는 수정 불가                 |
-| **확장 가능성**          | 타입별 / 공통 / 정책 / 로거 자유 확장 가능     |
-
----
-
-## 🧪 샘플
+### Installing hooks
 
 ```csharp
-var world = new World();
+// Write: even IDs only
+w.AddWritePermission((world, e, t) => (e.Id & 1) == 0);
 
-// 짝수 ID 엔티티만 쓰기 허용
-var writePerm = new Func<World, Entity, Type, bool>((w, e, t) => (e.Id & 1) == 0);
-world.AddWritePermission(writePerm);
+// Validator: Mana must be >= 0
+w.AddValidator<Mana>(m => m.Value >= 0);
 
-// Mana 컴포넌트가 0 이상인지 검증
-Func<Mana, bool> manaCheck = m => m.Value >= 0;
-world.AddValidator(manaCheck);
+// Read: allow only Mana type
+w.AddReadPermission((world, e, t) => t == typeof(Mana));
+```
 
-// 테스트
-var e1 = world.CreateEntity(); // id=1 → 쓰기 거부
-var e2 = world.CreateEntity(); // id=2 → 허용
+### System logic
 
-world.Add(e2, new Mana(-10)); // 검증 실패 (로그/예외)
-world.Add(e2, new Mana(10));  // 정상
+```csharp
+[SimulationGroup]
+public sealed class WorldHooksDemoSystem : IVariableRunSystem
+{
+    public void Run(World w)
+    {
+        var e1 = w.CreateEntity(); // odd id
+        var e2 = w.CreateEntity(); // even id
 
-// 해제
-world.RemoveWritePermission(writePerm);
-world.RemoveValidator(manaCheck);
+        TryAdd(w, e1, new Mana(10));   // denied by write perm
+        TryAdd(w, e2, new Mana(-10));  // denied by validator
+        TryAdd(w, e2, new Mana(5));    // OK
+
+        if (w.TryRead<Mana>(e2, out var mana))
+            Console.WriteLine($"Read OK: e:{e2.Id} Mana={mana.Value}");
+        else
+            Console.WriteLine("Read denied");
+
+        w.ClearReadPermissions();
+        w.RemoveAllValidators();
+        w.ClearWritePermissions();
+    }
+}
+```
+
+### Read-only presentation
+
+```csharp
+[PresentationGroup]
+public sealed class PrintSummarySystem : IPresentationSystem
+{
+    public void Run(World w, float alpha)
+    {
+        foreach (var e in w.Query<Mana>())
+            Console.WriteLine($"Entity {e.Id}: Mana={w.Read<Mana>(e).Value}");
+    }
+}
+```
+
+### Frame driver
+
+```csharp
+const float fixedDelta = 1f / 60f;
+const int   maxSubSteps = 4;
+EcsKernel.Pump(dt, fixedDelta, maxSubSteps, out var alpha);
+EcsKernel.LateFrame(alpha);
 ```
 
 ---
 
-## 🧩 참고
+## Build & Run
 
-* `EcsActions`는 World 훅만 참조합니다.
-  전역 훅이나 static 정책은 존재하지 않습니다.
-* `Add/Replace/Remove`가 차단되면 이벤트(`RaiseAdded/Changed/Removed`)도 발생하지 않습니다.
-* `Has<T>()`는 항상 true/false 결과를 반환하며, 읽기 정책에 영향받지 않습니다.
+**Prereqs:** .NET 8 SDK and ZenECS Core assemblies referenced.
+
+```bash
+dotnet restore
+dotnet build --no-restore
+dotnet run --project <your-console-sample-csproj>
+```
+
+Press **any key** to exit.
+
+---
+
+## Example output
+
+```
+=== ZenECS Core Sample — World Hooks (Kernel) ===
+=== World Hooks demo (read/write permissions, validator) ===
+Add<Mana> FAIL on e:1 :: Write denied by policy
+Add<Mana> FAIL on e:2 :: Validation failed
+Add<Mana> OK on e:2 -> Mana=5
+Read OK (e:2) -> Mana=5
+All hooks removed.
+[Late] Frame 1, alive=2
+Entity  2: Mana=5
+Shutting down...
+Done.
+```
+
+---
+
+## APIs highlighted
+
+* **World Hook APIs**
+
+    * `World.AddValidator<T>(Predicate<T>)`
+    * `World.AddWritePermission(Func<World,Entity,Type,bool>)`
+    * `World.AddReadPermission(Func<World,Entity,Type,bool>)`
+    * `World.RemoveValidator`, `World.RemoveWritePermission`, `World.ClearReadPermissions`
+* **Runtime logging**
+
+    * `EcsRuntimeOptions.Log`
+    * `EcsRuntimeOptions.WriteFailurePolicy`
+* **System grouping**
+
+    * `[SimulationGroup]` (write)
+    * `[PresentationGroup]` (read-only)
+
+---
+
+## Notes & best practices
+
+* Use **validators** to enforce invariant constraints (e.g., non-negative HP).
+* Use **permissions** to limit who/what can modify or observe ECS data.
+* Presentation systems must always remain **read-only**.
+* Hooks are **per-world** — each world instance can have independent rules.
+* Clear hooks before world reset or reuse to avoid side effects.
+* Combine with `EcsRuntimeOptions.WriteFailurePolicy.Throw` during tests for safety.
 
 ---
 
 ## License
 
-MIT © 2025 Pippapips Limited
+MIT © 2025 Pippapips Limited.

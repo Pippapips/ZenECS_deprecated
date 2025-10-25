@@ -10,6 +10,7 @@
 // License: MIT (https://opensource.org/licenses/MIT)
 // SPDX-License-Identifier: MIT
 // ──────────────────────────────────────────────────────────────────────────────
+#nullable enable
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;

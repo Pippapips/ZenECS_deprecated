@@ -22,7 +22,7 @@ namespace ZenECS.Core.Binding.Util
     /// Default implementation of <see cref="IMainThreadGate"/> that uses
     /// <see cref="SynchronizationContext"/> to marshal actions to the main thread.
     /// </summary>
-    public sealed class DefaultMainThreadGate : IMainThreadGate
+    internal sealed class DefaultMainThreadGate : IMainThreadGate
     {
         private readonly int _mainThreadId;
         private readonly SynchronizationContext _ctx;

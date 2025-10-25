@@ -3,7 +3,6 @@ using ZenECS.Adapter.Unity.Binding;
 using ZenECS.Adapter.Unity.Components.Common;
 using ZenECS.Core;
 using ZenECS.Core.Binding;
-using ZenECS.Core.Extensions;
 
 namespace ZenECS.Adapter.Unity.Blueprints
 {

@@ -19,7 +19,7 @@ namespace ZenECS.Core.Binding
     /// <summary>
     /// Read-only facade to resolve binders without exposing registration APIs.
     /// </summary>
-    public interface IComponentBinderResolver
+    internal interface IComponentBinderResolver
     {
         /// <summary>Attempts to resolve a binder for the given component type.</summary>
         bool TryResolve(Type componentType, out IComponentBinder binder);

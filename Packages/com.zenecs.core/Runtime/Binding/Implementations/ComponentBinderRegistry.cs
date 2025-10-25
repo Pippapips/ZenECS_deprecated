@@ -22,7 +22,7 @@ namespace ZenECS.Core.Binding
     /// component-type → binder mappings. Designed for main-thread usage; if you need
     /// multithreaded access, replace the dictionaries with concurrent variants or add locks.
     /// </summary>
-    public sealed class ComponentBinderRegistry : IComponentBinderRegistry
+    internal sealed class ComponentBinderRegistry : IComponentBinderRegistry
     {
         private readonly HashSet<Type> _registeredTypes = new();
 

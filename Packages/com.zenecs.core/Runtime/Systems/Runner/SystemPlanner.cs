@@ -34,10 +34,16 @@ namespace ZenECS.Core.Systems
             }
 
             /// <summary>
-            /// Sorted results per execution group.
+            /// Sorted results per frame setup execution group.
             /// </summary>
             public IReadOnlyList<ISystem> FrameSetup { get; }
+            /// <summary>
+            /// Sorted results per simulation execution group.
+            /// </summary>
             public IReadOnlyList<ISystem> Simulation { get; }
+            /// <summary>
+            /// Sorted results per presentation execution group.
+            /// </summary>
             public IReadOnlyList<ISystem> Presentation { get; }
 
             /// <summary>

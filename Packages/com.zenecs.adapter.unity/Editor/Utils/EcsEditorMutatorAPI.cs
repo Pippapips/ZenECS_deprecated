@@ -1,7 +1,6 @@
 ﻿#nullable enable
 #if UNITY_EDITOR
 using ZenECS.Core;
-using ZenECS.Core.Extensions;
 using ZenECS.Core.Infrastructure;
 
 namespace ZenECS.EditorUtils

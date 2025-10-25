@@ -20,7 +20,7 @@ using System.Reflection;
 
 namespace ZenECS.Core.Binding.Util
 {
-    public static class BinderFastInvokerCache
+    internal static class BinderFastInvokerCache
     {
         private static readonly ConcurrentDictionary<Type, Action<World, Entity, IViewBinder, IComponentBinder>> _applyNoBox = new();
         public static Action<World, Entity, IViewBinder, IComponentBinder> GetApplyNoBox(Type t) => _applyNoBox.GetOrAdd(t, Create);

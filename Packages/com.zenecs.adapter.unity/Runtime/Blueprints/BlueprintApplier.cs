@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using ZenECS.Core;
-using ZenECS.Core.Extensions;
 
 namespace ZenECS.Adapter.Unity.Blueprints
 {

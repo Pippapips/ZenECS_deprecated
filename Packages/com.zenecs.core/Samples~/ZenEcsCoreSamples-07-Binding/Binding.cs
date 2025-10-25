@@ -18,7 +18,6 @@ using ZenECS.Core;
 using ZenECS.Core.Binding;
 using ZenECS.Core.Binding.Systems;
 using ZenECS.Core.Binding.Util;
-using ZenECS.Core.Extensions;
 using ZenECS.Core.Infrastructure;
 using ZenECS.Core.Messaging;
 using ZenECS.Core.Sync;

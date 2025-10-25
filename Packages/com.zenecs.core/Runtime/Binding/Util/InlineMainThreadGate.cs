@@ -18,7 +18,7 @@ namespace ZenECS.Core.Binding.Util
     /// <summary>
     /// Console/tests variant: Post/Send are executed inline on the same thread.
     /// </summary>
-    public sealed class InlineMainThreadGate : IMainThreadGate
+    internal sealed class InlineMainThreadGate : IMainThreadGate
     {
         public bool IsMainThread => true;
         public void Ensure() { /* always main in this model */ }

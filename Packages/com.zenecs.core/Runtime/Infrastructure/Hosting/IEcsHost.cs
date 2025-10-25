@@ -18,8 +18,21 @@ using System.Collections.Generic;
 using ZenECS.Core.Binding.Util;
 using ZenECS.Core.Systems;
 
-namespace ZenECS.Core.Hosting
+namespace ZenECS.Core.Infrastructure.Hosting
 {
+    /// <summary>
+    /// Primary host interface for ZenECS that owns the <c>World</c>, the message <c>Bus</c>,
+    /// and the system runner lifecycle.
+    /// </summary>
+    /// <remarks>
+    /// Provides the high-level ECS lifecycle:
+    /// <list type="number">
+    /// <item><description><c>Start(...)</c> — construct/configure the world, register systems, and prepare runners.</description></item>
+    /// <item><description>Per-frame loop — call <c>BeginFrame</c>, optionally <c>FixedStep</c> for fixed updates, then <c>LateFrame</c>.</description></item>
+    /// <item><description><c>Shutdown()</c> — tear down systems and release resources.</description></item>
+    /// </list>
+    /// Implementations should be <see cref="IDisposable"/> and coordinate thread-affinity via an <c>IMainThreadGate</c> when needed.
+    /// </remarks>
     public interface IEcsHost : IDisposable
     {
         World World { get; }
@@ -35,7 +48,7 @@ namespace ZenECS.Core.Hosting
         void Shutdown();
 
         // ---- Runner lifecycle / forwarding ----
-        SystemRunner Runner { get; }
+        SystemRunnerOptions RunnerOptions { get; }
         void BeginFrame(float dt);
         void FixedStep(float fixedDelta);
         void LateFrame(float alpha);

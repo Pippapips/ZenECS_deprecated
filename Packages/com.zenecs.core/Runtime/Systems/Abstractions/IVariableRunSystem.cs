@@ -11,6 +11,7 @@
 // License: MIT (https://opensource.org/licenses/MIT)
 // SPDX-License-Identifier: MIT
 // ──────────────────────────────────────────────────────────────────────────────
+#nullable enable
 namespace ZenECS.Core.Systems
 {
     /// <summary>

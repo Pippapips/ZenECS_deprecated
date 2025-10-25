@@ -17,7 +17,6 @@
 using System.Diagnostics;
 using ZenECS; // Kernel
 using ZenECS.Core;
-using ZenECS.Core.Extensions;
 using ZenECS.Core.Infrastructure;
 using ZenECS.Core.Systems;
 
@@ -92,7 +91,7 @@ namespace ZenEcsCoreSamples.Basic
     {
         private static void Main()
         {
-            Console.WriteLine("=== ZenECS Core Console Sample 01: Basic (Kernel) ===");
+            Console.WriteLine("=== ZenECS Core Sample - Basic (Kernel) ===");
 
             // Boot: configure world and entities in setup callback
             EcsKernel.Start(
@@ -102,10 +101,10 @@ namespace ZenEcsCoreSamples.Basic
                     new MoveSystem(),          // Simulation
                     new PrintPositionsSystem() // Presentation (read-only)
                 },
-                null,
-                null,
-                Console.WriteLine,
-                (world, bus) =>
+                options: null,
+                mainThreadGate: null,
+                systemRunnerLog: Console.WriteLine,
+                configure: (world, bus) =>
                 {
                     var ecsLogger = new EcsLogger();
                     EcsRuntimeOptions.Log = ecsLogger;

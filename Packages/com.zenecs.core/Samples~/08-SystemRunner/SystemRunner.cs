@@ -1,6 +1,5 @@
 ﻿using System;
 using ZenECS.Core;
-using ZenECS.Core.Extensions;
 using ZenECS.Core.Messaging;
 using ZenECS.Core.Systems;
 

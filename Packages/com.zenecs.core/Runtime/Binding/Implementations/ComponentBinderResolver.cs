@@ -21,7 +21,7 @@ namespace ZenECS.Core.Binding
     /// Read-only resolver that forwards lookups to an underlying
     /// <see cref="IComponentBinderRegistry"/> without exposing registration APIs.
     /// </summary>
-    public sealed class ComponentBinderResolver : IComponentBinderResolver
+    internal sealed class ComponentBinderResolver : IComponentBinderResolver
     {
         private readonly IComponentBinderRegistry _registry;
 

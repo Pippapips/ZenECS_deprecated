@@ -2,7 +2,6 @@
 using ZenECS.Core.Serialization;
 using ZenECS.Adapter.Unity.Components.Common; // Position 타입 네임스페이스
 using ZenECS.Core;
-using ZenECS.Core.Extensions;
 
 namespace ZenECS.Adapter.Unity.Migrations
 {

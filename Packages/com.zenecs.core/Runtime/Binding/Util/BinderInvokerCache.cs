@@ -17,7 +17,7 @@ using System.Linq.Expressions;
 
 namespace ZenECS.Core.Binding.Util
 {
-    public static class BinderInvokerCache
+    internal static class BinderInvokerCache
     {
         private static readonly ConcurrentDictionary<Type, Action<World, Entity, object?, IViewBinder, IComponentBinder>> _apply = new();
         private static readonly ConcurrentDictionary<Type, Action<World, Entity, IViewBinder, IComponentBinder>> _bind = new();
