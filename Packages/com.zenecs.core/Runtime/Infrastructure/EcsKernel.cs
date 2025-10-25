@@ -88,7 +88,6 @@ namespace ZenECS.Core.Infrastructure
             IMainThreadGate? mainThreadGate = null,
             Action<string>? systemRunnerLog = null,
             Action<World, MessageBus>? configure = null,
-
             bool throwIfRunning = false)
         {
             lock (_gate)

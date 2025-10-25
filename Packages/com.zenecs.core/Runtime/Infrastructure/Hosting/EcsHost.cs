@@ -132,7 +132,7 @@ namespace ZenECS.Core.Infrastructure.Hosting
                 list.Add(binding);
                 list.Add(dispatch);
 
-                _runner = new SystemRunner(World, null, list, options ?? new SystemRunnerOptions(), log);
+                _runner = new SystemRunner(World, Bus, list, options ?? new SystemRunnerOptions(), log);
                 _runner.InitializeSystems();
             }
         }

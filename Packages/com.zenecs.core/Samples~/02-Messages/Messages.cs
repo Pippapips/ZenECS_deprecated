@@ -58,7 +58,7 @@ namespace ZenEcsCoreSamples.Messages
     /// Runs in Simulation (writes are allowed here).
     /// </summary>
     [SimulationGroup]
-    public sealed class DamageSystem : ISystemLifecycle, IVariableRunSystem
+    public sealed class DamageSystem : ISystemLifecycle
     {
         private MessageBus? _bus;
         private IDisposable? _sub;
@@ -82,12 +82,11 @@ namespace ZenEcsCoreSamples.Messages
         }
         public void Shutdown(World w)
         {
+            _sub?.Dispose();
         }
 
         public void Run(World w)
         {
-            // Drain queued messages once per simulation tick
-            _bus?.PumpAll();
         }
     }
 
