@@ -13,7 +13,6 @@
 // License: MIT (https://opensource.org/licenses/MIT)
 // SPDX-License-Identifier: MIT
 // ──────────────────────────────────────────────────────────────────────────────
-
 using System.Diagnostics;
 using ZenECS; // Kernel
 using ZenECS.Core;

@@ -1,0 +1,23 @@
+name: docs-sync
+on:
+  push:
+    paths:
+      - 'Docs/**'
+      - 'scripts/sync-docs.sh'
+      - 'scripts/sync-docs.ps1'
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Sync Docs → Documentation~
+        run: bash ./scripts/sync-docs.sh
+      - name: Commit changes (if any)
+        run: |
+          if [[ -n "$(git status --porcelain)" ]]; then
+            git config user.name "zenecs-bot"
+            git config user.email "bot@pippapips.com"
+            git add -A
+            git commit -m "chore(docs): sync Documentation~ from Docs/"
+            git push
+          fi

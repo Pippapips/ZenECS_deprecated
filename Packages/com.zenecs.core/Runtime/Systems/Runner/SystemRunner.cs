@@ -69,7 +69,7 @@ namespace ZenECS.Core.Systems
     /// Coordinates system execution per phase (FrameSetup, Simulation, Presentation)
     /// and manages lifecycle (Initialize / Shutdown).
     /// </summary>
-    internal sealed class SystemRunner
+    public sealed class SystemRunner
     {
         /// <summary>
         /// Configuration for <see cref="SystemRunner"/> behavior.

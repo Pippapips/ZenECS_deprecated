@@ -2,19 +2,30 @@
   "name": "com.zenecs.core",
   "displayName": "ZenECS Core",
   "version": "1.0.0",
-  "description": "Pure C# data-driven ECS core (no Unity dependency).",
+  "type": "library",
+  "description": "ZenECS Core is a pure C# Entity–Component–System (ECS) runtime focused on determinism, clarity, and zero dependencies. It provides a minimal and composable foundation for data-driven gameplay and simulation logic, entirely independent of Unity. The Core layer contains only the runtime essentials — entity management, component storage, message bus, and system scheduling — making it suitable for both game engines and standalone .NET applications. It targets .NET Standard 2.1, supports serialization, snapshotting, and unit-test-friendly execution, and serves as the foundation for higher-level adapters such as Adapter.Unity, Adapter.Godot, or Adapter.WebGL.",
   "unity": "2021.3",
-  "documentationUrl": "https://github.com/Pippapips/ZenECS",
-  "licensesUrl": "https://github.com/Pippapips/ZenECS/blob/main/LICENSE",
+  "documentationUrl": "https://github.com/Pippapips/ZenECS/wiki",
   "changelogUrl": "https://github.com/Pippapips/ZenECS/releases",
+  "licensesUrl": "https://github.com/Pippapips/ZenECS/blob/main/LICENSE",
   "keywords": [
     "ecs",
     "data-oriented",
-    "core"
+    "gameplay",
+    "framework",
+    "dotnet",
+    "runtime",
+    "pippapips"
   ],
   "author": {
     "name": "Pippapips Limited",
     "email": "ck@pippapips.com",
     "url": "https://pippapips.com"
-  }
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Pippapips/ZenECS.git"
+  },
+  "dependencies": {},
+  "hideInEditor": false
 }
