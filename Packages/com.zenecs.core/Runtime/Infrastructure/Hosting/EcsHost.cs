@@ -19,11 +19,8 @@ using ZenECS.Core.Events;
 using ZenECS.Core.Systems;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
-using ZenECS.Core.Binding;
-using ZenECS.Core.Binding.Systems;
-using ZenECS.Core.Binding.Util;
 using ZenECS.Core.Infrastructure;
-using ZenECS.Core.Sync;
+using ZenECS.Core.ViewBinding;
 
 namespace ZenECS.Core.Infrastructure.Hosting
 {
@@ -87,17 +84,17 @@ namespace ZenECS.Core.Infrastructure.Hosting
             WorldConfig config,
             IEnumerable<ISystem> systems,
             SystemRunnerOptions? options = null,
-            IMainThreadGate? mainThreadGate = null,
+            IComponentDeltaDispatcher? componentDeltaDispatcher = null,
             Action<string>? systemRunnerLog = null,
             Action<World, MessageBus>? configure = null)
         {
             lock (_gate)
             {
                 if (IsRunning) return;
-                _world = new World(config);
+                _world = new World(config, componentDeltaDispatcher);
                 _bus = new MessageBus();
                 IsRunning = true;
-                initializeSystems(systems, options, mainThreadGate, systemRunnerLog);
+                initializeSystems(systems, options, systemRunnerLog);
                 configure?.Invoke(_world, _bus);
             }
         }
@@ -108,7 +105,6 @@ namespace ZenECS.Core.Infrastructure.Hosting
         private void initializeSystems(
             IEnumerable<ISystem> systems,
             SystemRunnerOptions? options = null,
-            IMainThreadGate? mainThreadGate = null,
             Action<string>? log = null)
         {
             lock (_gate)
@@ -117,21 +113,6 @@ namespace ZenECS.Core.Infrastructure.Hosting
                 if (_runner != null) return;
 
                 var list = systems is List<ISystem> l ? new List<ISystem>(l) : new List<ISystem>(systems);
-
-                var gate = mainThreadGate ?? new DefaultMainThreadGate();
-                var changeFeed = new ComponentChangeFeed(gate);
-                var binderRegistry = new ComponentBinderRegistry();
-                var resolver = new ComponentBinderResolver(binderRegistry);
-                var viewRegistry = new ViewBinderRegistry();
-
-                var hub = new ComponentBindingHubSystem(changeFeed);
-                var binding = new ViewBindingSystem(viewRegistry, binderRegistry, resolver);
-                var dispatch = new ComponentBatchDispatchSystem(changeFeed, binding);
-
-                list.Add(hub);
-                list.Add(binding);
-                list.Add(dispatch);
-
                 _runner = new SystemRunner(World, Bus, list, options ?? new SystemRunnerOptions(), log);
                 _runner.InitializeSystems();
             }
@@ -235,7 +216,6 @@ namespace ZenECS.Core.Infrastructure.Hosting
                 shutdownSystems();
 
                 _bus?.Clear();
-                ComponentEvents.Reset();
                 EntityEvents.Reset();
                 _world?.Reset(false);
                 _bus = null;

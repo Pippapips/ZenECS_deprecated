@@ -1,5 +1,4 @@
 ﻿using ZenECS.Adapter.Unity.Components.Common;
-using ZenECS.Core.Sync;
 #if ZENECS_ZENJECT
 using Zenject;
 #endif

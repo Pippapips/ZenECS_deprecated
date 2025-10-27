@@ -188,6 +188,8 @@ namespace ZenECS.Core.Systems
         /// </summary>
         public void LateFrame(float interpolationAlpha = 1f)
         {
+            _w.ComponentDeltaDispatcher.RunApply();
+            
             using IDisposable? guard = Options.GuardWritesInPresentation ? DenyWrites(_w) : null;
             RunLateGroup(SystemGroup.Presentation);
 

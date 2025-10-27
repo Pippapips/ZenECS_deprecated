@@ -107,7 +107,7 @@ namespace ZenEcsCoreSamples.WorldReset
                     new PrintSummarySystem(),   // Presentation (read-only)
                 },
                 options: null,
-                mainThreadGate: null,
+                componentDeltaDispatcher: null,
                 systemRunnerLog: Console.WriteLine,
                 configure: (world, bus) => { /* optional setup */ }
             );

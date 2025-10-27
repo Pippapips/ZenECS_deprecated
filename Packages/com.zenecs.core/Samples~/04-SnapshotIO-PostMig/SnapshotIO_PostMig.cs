@@ -178,7 +178,7 @@ namespace ZenEcsCoreSamples.Snapshot
                     new PrintSummarySystem(),  // Presentation system (read-only)
                 },
                 options: null,
-                mainThreadGate: null,
+                componentDeltaDispatcher: null,
                 systemRunnerLog: Console.WriteLine,
                 configure: (world, bus) => { }
             );

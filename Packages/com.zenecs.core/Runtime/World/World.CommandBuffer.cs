@@ -176,7 +176,7 @@ namespace ZenECS.Core
                         return;
                     }
                     w.AddComponentInternal(e, in v);
-                    Events.ComponentEvents.RaiseAdded(w, e, typeof(T));
+                    w.ComponentDeltaDispatcher.DispatchAdded(e, v);
                 }
             }
 
@@ -198,7 +198,7 @@ namespace ZenECS.Core
                     }
                     // Route through World.Replace to align with hooks/validation/events.
                     w.Replace(e, in v);
-                    Events.ComponentEvents.RaiseChanged(w, e, typeof(T));
+                    w.ComponentDeltaDispatcher.DispatchChanged(e, v);
                 }
             }
 
@@ -214,7 +214,9 @@ namespace ZenECS.Core
                         return;
                     }
                     if (w.RemoveComponentInternal<T>(e))
-                        Events.ComponentEvents.RaiseRemoved(w, e, typeof(T));
+                    {
+                        w.ComponentDeltaDispatcher.DispatchRemoved<T>(e);
+                    }
                 }
             }
 

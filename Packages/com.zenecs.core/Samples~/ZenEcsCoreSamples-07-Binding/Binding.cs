@@ -15,13 +15,10 @@ using System;
 using System.Diagnostics;
 using System.Threading;
 using ZenECS.Core;
-using ZenECS.Core.Binding;
-using ZenECS.Core.Binding.Systems;
-using ZenECS.Core.Binding.Util;
 using ZenECS.Core.Infrastructure;
 using ZenECS.Core.Messaging;
-using ZenECS.Core.Sync;
 using ZenECS.Core.Systems;
+using ZenECS.Core.ViewBinding;
 
 namespace ZenECS.Binding.ConsoleSample
 {
@@ -42,43 +39,69 @@ namespace ZenECS.Binding.ConsoleSample
     }
 
     /// <summary>
-    /// A simple console binder for Position component.
-    /// Prints bind/apply/unbind events to the console.
+    /// Simple position component for demonstration.
     /// </summary>
-    public sealed class PositionBinder : IComponentBinder<Position>, IComponentBinder
+    public readonly struct Health : IEquatable<Health>
     {
-        public Type ComponentType => typeof(Position);
-
-        public void Bind(World w, Entity e, IViewBinder v)
-            => Console.WriteLine($"[Bind]   e={e} Position");
-
-        public void Apply(World w, Entity e, in Position value, IViewBinder v)
-            => Console.WriteLine($"[Apply]  e={e} Position={value}");
-
-        public void Unbind(World w, Entity e, IViewBinder v)
-            => Console.WriteLine($"[Unbind] e={e} Position");
-
-        // Explicit non-generic interface implementations
-        void IComponentBinder.Bind(World w, Entity e, IViewBinder t) => Bind(w, e, t);
-        void IComponentBinder.Apply(World w, Entity e, object value, IViewBinder t) => Apply(w, e, (Position)value, t);
-        void IComponentBinder.Unbind(World w, Entity e, IViewBinder t) => Unbind(w, e, t);
+        public readonly int Hp, MaxHp;
+        public Health(int hp, int maxHp)
+        {
+            Hp = hp;
+            MaxHp = maxHp;
+        }
+        public bool Equals(Health other) => Hp == other.Hp && MaxHp == other.MaxHp;
+        public override bool Equals(object? obj) => obj is Health other && Equals(other);
+        public override int GetHashCode() => HashCode.Combine(Hp, MaxHp);
+        public override string ToString() => $"({Hp}, {MaxHp})";
     }
 
     /// <summary>
-    /// Simplified view binder for console output.
+    /// A simple console binder for Position component.
+    /// Prints bind/apply/unbind events to the console.
     /// </summary>
-    public sealed class ConsoleViewBinder : IViewBinder
+    public sealed class ConsoleViewBinder : BaseViewBinder,
+        // IAlwaysApply,
+        IBinds<Position>, IBinds<Health>
     {
-        public string Name { get; }
-        public ConsoleViewBinder(string name) => Name = name;
-        public override string ToString() => Name;
+        public override int Priority => 10;
+        private Position _p;
+        private Health _h;
 
-        public Entity Entity { get; }
-        public int HandleId { get; }
-
-        public void SetEntity(Entity e)
+        public void OnDelta(in ComponentDelta<Position> delta)
         {
-            throw new NotImplementedException();
+            Console.WriteLine($"Position {delta.Kind}");
+            if (delta.Kind != ComponentDeltaKind.Removed) _p = delta.Value;
+            else
+            {
+                _p = new Position(0, 0);
+            }
+        }
+        
+        public void OnDelta(in ComponentDelta<Health> delta)
+        {
+            Console.WriteLine($"Health {delta.Kind}");
+            if (delta.Kind != ComponentDeltaKind.Removed) _h = delta.Value;
+        }
+
+        public override void Apply()
+        {
+            Console.WriteLine($"[Apply]  e={Entity} Position={_p}");
+            Console.WriteLine($"[Apply]  e={Entity} Health={_h}");
+        }
+        
+        protected override void OnBind(World w, Entity e)
+        {
+            Console.WriteLine($"[Bind]   e={e}");
+        }
+
+        protected override void OnUnbind()
+        {
+            Console.WriteLine($"[Unbind] e={Entity}");
+        }
+
+        protected override void OnDispose()
+        {
+            Console.WriteLine($"[Disposed] e={Entity}");
         }
     }
 
@@ -89,6 +112,7 @@ namespace ZenECS.Binding.ConsoleSample
     {
         private static World? _w;
         private static Entity _e;
+        private static ConsoleViewBinder? _view;
         
         static void Main()
         {
@@ -104,20 +128,20 @@ namespace ZenECS.Binding.ConsoleSample
                     var ecsLogger = new EcsLogger();
                     EcsRuntimeOptions.Log = ecsLogger;
 
-                    // Register the Position binder globally
-                    EcsRuntimeDirectory.ComponentBinderRegistry?.RegisterSingleton<Position>(new PositionBinder());
-                    
                     // Create entity and associate with a console view
                     var e = world.CreateEntity();
-                    var view = new ConsoleViewBinder("Player-View");
-                    EcsRuntimeDirectory.ViewBinderRegistry?.Register(e, view);
+                    var view = new ConsoleViewBinder();
+                    world.ComponentDeltaDispatcher.Attach(e, view);
 
                     // Add and modify Position component
                     world.Add(e, new Position(1, 1));
                     world.Replace(e, new Position(2.5f, 4));
+                    
+                    world.Add(e, new Health(10, 100));
 
                     _w = world;
                     _e = e;
+                    _view = view;
                 }
             );
             
@@ -128,16 +152,32 @@ namespace ZenECS.Binding.ConsoleSample
             Console.WriteLine("Running... press any key to exit.");
 
             bool loop = true;
+            int exitStep = 0;
             while (loop)
             {
-                if (Console.KeyAvailable)
+                if (exitStep == 1)
                 {
-                    _ = Console.ReadKey(intercept: true);
-                    if (_w != null && _w.IsAlive(_e))
+                    Console.WriteLine("Exiting... step 1");
+                    if (_view != null && _w != null && _w.IsAlive(_e))
                     {
-                        _w.Remove<Position>(_e);
+                        // Two-kind of unbind view
+                        //_w.ComponentDeltaDispatcher.Detach(_e, _view);
+                        _w.DestroyEntity(_e);
+                        
+                        _view.Dispose();
+                        _view = null;
                     }
                     loop = false;
+                }
+                
+                if (exitStep == 0 && Console.KeyAvailable)
+                {
+                    _ = Console.ReadKey(intercept: true);
+                    if (_view != null && _w != null && _w.IsAlive(_e))
+                    {
+                        _w.Remove<Position>(_e);
+                        exitStep++;
+                    }
                 }
 
                 double now = sw.Elapsed.TotalSeconds;

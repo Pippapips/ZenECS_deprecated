@@ -79,7 +79,7 @@ namespace ZenECS.Core.Infrastructure
 
             ref var r = ref w.RefComponentInternal<T>(e);
             r = value;
-            ComponentEvents.RaiseAdded(w, e, typeof(T));
+            w.ComponentDeltaDispatcher.DispatchAdded(e, value);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -105,7 +105,7 @@ namespace ZenECS.Core.Infrastructure
 
             ref var r = ref w.RefComponentInternal<T>(e);
             r = value;
-            ComponentEvents.RaiseChanged(w, e, typeof(T));
+            w.ComponentDeltaDispatcher.DispatchChanged(e, value);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -118,7 +118,9 @@ namespace ZenECS.Core.Infrastructure
             }
 
             if (w.RemoveComponentInternal<T>(e))
-                ComponentEvents.RaiseRemoved(w, e, typeof(T));
+            {
+                w.ComponentDeltaDispatcher.DispatchRemoved<T>(e);
+            }
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

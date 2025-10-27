@@ -18,8 +18,8 @@ using ZenECS.Core.Messaging;
 using ZenECS.Core.Systems;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
-using ZenECS.Core.Binding.Util;
 using ZenECS.Core.Infrastructure.Hosting;
+using ZenECS.Core.ViewBinding;
 
 namespace ZenECS.Core.Infrastructure
 {
@@ -85,7 +85,7 @@ namespace ZenECS.Core.Infrastructure
             WorldConfig? config = null,
             IEnumerable<ISystem>? systems = null,
             SystemRunnerOptions? options = null,
-            IMainThreadGate? mainThreadGate = null,
+            IComponentDeltaDispatcher? componentDeltaDispatcher = null,
             Action<string>? systemRunnerLog = null,
             Action<World, MessageBus>? configure = null,
             bool throwIfRunning = false)
@@ -102,7 +102,7 @@ namespace ZenECS.Core.Infrastructure
                     config ?? new WorldConfig(),
                     systems ?? Array.Empty<ISystem>(),
                     options,
-                    mainThreadGate,
+                    componentDeltaDispatcher,
                     systemRunnerLog,
                     configure);
             }

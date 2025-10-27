@@ -101,7 +101,7 @@ namespace ZenEcsCoreSamples.Basic
                     new PrintPositionsSystem() // Presentation (read-only)
                 },
                 options: null,
-                mainThreadGate: null,
+                componentDeltaDispatcher: null,
                 systemRunnerLog: Console.WriteLine,
                 configure: (world, bus) =>
                 {

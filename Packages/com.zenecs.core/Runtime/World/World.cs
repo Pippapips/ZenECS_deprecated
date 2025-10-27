@@ -18,6 +18,7 @@ using System.Runtime.CompilerServices;
 using ZenECS.Core.Events;
 using ZenECS.Core.Internal;
 using ZenECS.Core.Serialization;
+using ZenECS.Core.ViewBinding;
 
 namespace ZenECS.Core
 {
@@ -53,12 +54,15 @@ namespace ZenECS.Core
         /// </summary>
         private int[] _generation; // 세대(Generation) 배열: slot별 현재 세대 카운터 → Generation array: per-slot current generation
 
+        public IComponentDeltaDispatcher ComponentDeltaDispatcher => _componentDeltaDispatcher;
+        private IComponentDeltaDispatcher _componentDeltaDispatcher;
+
         /// <summary>
         /// Constructs a World with the given configuration (or defaults).
         /// Initializes liveness bitset, generation array, free-id stack, and the type→pool map.
         /// </summary>
         /// <param name="config">Optional world configuration; if null, defaults are used.</param>
-        public World(WorldConfig? config = null)
+        public World(WorldConfig? config = null, IComponentDeltaDispatcher? componentDeltaDispatcher = null)
         {
             _cfg        = config ?? new WorldConfig();
 
@@ -67,6 +71,7 @@ namespace ZenECS.Core
             _freeIds    = new Stack<int>(_cfg.InitialFreeIdCapacity);                     // Recycled IDs storage for destroyed entities
             _pools       = new Dictionary<Type, IComponentPool>(_cfg.InitialPoolBuckets); // Type→pool map
             _nextId     = 1;                                                              // New entities start from 1
+            _componentDeltaDispatcher = componentDeltaDispatcher ?? new ComponentDeltaDispatcher(this);
         }
     }
 }

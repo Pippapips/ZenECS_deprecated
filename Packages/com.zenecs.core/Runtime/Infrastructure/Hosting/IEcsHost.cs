@@ -15,8 +15,8 @@ using ZenECS.Core;
 using ZenECS.Core.Messaging;
 using System;
 using System.Collections.Generic;
-using ZenECS.Core.Binding.Util;
 using ZenECS.Core.Systems;
+using ZenECS.Core.ViewBinding;
 
 namespace ZenECS.Core.Infrastructure.Hosting
 {
@@ -42,7 +42,7 @@ namespace ZenECS.Core.Infrastructure.Hosting
         void Start(WorldConfig config,
             IEnumerable<ISystem> systems,
             SystemRunnerOptions? options = null,
-            IMainThreadGate? mainThreadGate = null,
+            IComponentDeltaDispatcher? componentDeltaDispatcher = null,
             Action<string>? systemRunnerLog = null,
             Action<World, MessageBus>? configure = null);
         void Shutdown();
