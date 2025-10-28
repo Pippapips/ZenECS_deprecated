@@ -22,28 +22,10 @@ using ZenECS.Core.Messaging;
 namespace ZenECS.Core.Systems
 {
     /// <summary>
-    /// Defines when structural changes (Add/Remove) are flushed to the world.
-    /// </summary>
-    public enum StructuralFlushPolicy
-    {
-        /// <summary>Flush immediately at the end of the Simulation group (default).</summary>
-        EndOfSimulation,
-
-        /// <summary>Flush at the beginning of the next frame instead of the current one.</summary>
-        BeginOfNextFrame,
-
-        /// <summary>No automatic flushing; caller must trigger manually (for tests or custom loops).</summary>
-        Manual
-    }
-
-    /// <summary>
     /// Configuration for <see cref="SystemRunner"/> behavior.
     /// </summary>
     public sealed class SystemRunnerOptions
     {
-        /// <summary>Specifies when structural changes are flushed.</summary>
-        public StructuralFlushPolicy FlushPolicy { get; set; } = StructuralFlushPolicy.EndOfSimulation;
-
         /// <summary>Whether to enable write guards during the Presentation stage (read-only enforcement).</summary>
         public bool GuardWritesInPresentation { get; set; } = true;
 
@@ -53,11 +35,8 @@ namespace ZenECS.Core.Systems
         /// <summary>
         /// Initializes the options directly with custom parameters.
         /// </summary>
-        public SystemRunnerOptions(
-            StructuralFlushPolicy flushPolicy = StructuralFlushPolicy.EndOfSimulation,
-            bool guardWritesInPresentation = true)
+        public SystemRunnerOptions(bool guardWritesInPresentation = true)
         {
-            FlushPolicy = flushPolicy;
             GuardWritesInPresentation = guardWritesInPresentation;
         }
 
@@ -69,7 +48,7 @@ namespace ZenECS.Core.Systems
     /// Coordinates system execution per phase (FrameSetup, Simulation, Presentation)
     /// and manages lifecycle (Initialize / Shutdown).
     /// </summary>
-    public sealed class SystemRunner
+    internal sealed class SystemRunner
     {
         /// <summary>
         /// Configuration for <see cref="SystemRunner"/> behavior.
@@ -80,7 +59,6 @@ namespace ZenECS.Core.Systems
         private readonly IMessageBus _bus;
         private readonly SystemPlanner.Plan? _plan;
 
-        private bool _pendingFlush; // Indicates that a flush should occur at the next frame start
         private bool _started;
         private bool _stopped;
 
@@ -150,13 +128,6 @@ namespace ZenECS.Core.Systems
         /// </summary>
         public void BeginFrame(float deltaTime)
         {
-            // Apply pending flush if policy dictates BeginOfNextFrame
-            if (Options.FlushPolicy == StructuralFlushPolicy.BeginOfNextFrame && _pendingFlush)
-            {
-                _w.RunScheduledJobs();
-                _pendingFlush = false;
-            }
-
             // Consume all queued messages
             _bus.PumpAll();
 
@@ -171,16 +142,7 @@ namespace ZenECS.Core.Systems
             RunGroup(SystemGroup.Simulation);
 
             // Barrier handling based on flush policy
-            if (Options.FlushPolicy == StructuralFlushPolicy.EndOfSimulation)
-            {
-                // Standard position: flush before presentation
-                _w.RunScheduledJobs();
-            }
-            else if (Options.FlushPolicy == StructuralFlushPolicy.BeginOfNextFrame)
-            {
-                // Defer flush until next frame
-                _pendingFlush = true;
-            }
+            _w.RunScheduledJobs();
         }
 
         /// <summary>
@@ -188,7 +150,7 @@ namespace ZenECS.Core.Systems
         /// </summary>
         public void LateFrame(float interpolationAlpha = 1f)
         {
-            _w.ComponentDeltaDispatcher.RunApply();
+            _w.BindingRouter?.RunApply();
             
             using IDisposable? guard = Options.GuardWritesInPresentation ? DenyWrites(_w) : null;
             RunLateGroup(SystemGroup.Presentation);

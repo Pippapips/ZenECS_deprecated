@@ -60,7 +60,7 @@ namespace ZenEcsCoreSamples.Messages
     [SimulationGroup]
     public sealed class DamageSystem : ISystemLifecycle
     {
-        private MessageBus? _bus;
+        private IMessageBus? _bus;
         private IDisposable? _sub;
 
         public void Initialize(World w)
@@ -129,10 +129,11 @@ namespace ZenEcsCoreSamples.Messages
                     new PrintHealthSystem(), // Presentation (read-only)
                 },
                 options: null,
-                componentDeltaDispatcher: null,
                 systemRunnerLog: Console.WriteLine,
-                configure: (world, bus) =>
+                onComplete: () =>
                 {
+                    var world = EcsKernel.World;
+                    
                     // Seed entities with Health data
                     var e1 = world.CreateEntity();
                     var e2 = world.CreateEntity();

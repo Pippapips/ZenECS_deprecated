@@ -9,7 +9,7 @@ namespace ZenECS.Codegen.Registry
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
     private static void Register()
     {
-      ComponentRegistry.Register<ZenECS.Adapter.Unity.Components.Common.Position>("com.zenecs.position.v2");
+      ComponentRegistry.Register<ZenECS.Adapter.Unity.Components.Common.Position>("com.zenecs.position.v1");
       ComponentRegistry.Register<ZenECS.Adapter.Unity.Components.Common.Rotation>("com.zenecs.rotation.v1");
       ComponentRegistry.Register<ZenECS.Adapter.Unity.Components.Common.Scale>("com.zenecs.scale.v1");
     }

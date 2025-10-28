@@ -19,7 +19,7 @@ using ZenECS.Core.Systems;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using ZenECS.Core.Infrastructure.Hosting;
-using ZenECS.Core.ViewBinding;
+using ZenECS.Core.Binding;
 
 namespace ZenECS.Core.Infrastructure
 {
@@ -85,10 +85,9 @@ namespace ZenECS.Core.Infrastructure
             WorldConfig? config = null,
             IEnumerable<ISystem>? systems = null,
             SystemRunnerOptions? options = null,
-            IComponentDeltaDispatcher? componentDeltaDispatcher = null,
             Action<string>? systemRunnerLog = null,
-            Action<World, MessageBus>? configure = null,
-            bool throwIfRunning = false)
+            bool throwIfRunning = false,
+            Action? onComplete = null)
         {
             lock (_gate)
             {
@@ -102,9 +101,8 @@ namespace ZenECS.Core.Infrastructure
                     config ?? new WorldConfig(),
                     systems ?? Array.Empty<ISystem>(),
                     options,
-                    componentDeltaDispatcher,
                     systemRunnerLog,
-                    configure);
+                    onComplete);
             }
         }
 
@@ -112,8 +110,7 @@ namespace ZenECS.Core.Infrastructure
         /// Gets the active <see cref="SystemRunnerOptions"/> from the underlying host.
         /// </summary>
         /// <exception cref="InvalidOperationException">Thrown when the kernel has not been started.</exception>
-        public static Core.Systems.SystemRunnerOptions RunnerOptions
-            => SnapshotHostOrThrow().RunnerOptions;
+        public static Core.Systems.SystemRunnerOptions RunnerOptions => SnapshotHostOrThrow().RunnerOptions;
 
         /// <summary>
         /// Begins a new frame and runs Update-phase systems with the provided delta time.
@@ -137,7 +134,7 @@ namespace ZenECS.Core.Infrastructure
         /// <param name="alpha">Interpolation factor between the last and next fixed steps (0–1).</param>
         /// <exception cref="InvalidOperationException">Thrown when the kernel has not been started.</exception>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static void LateFrame(float alpha) => SnapshotHostOrThrow().LateFrame(alpha);
+        public static void LateFrame(float alpha = 1.0f) => SnapshotHostOrThrow().LateFrame(alpha);
 
         /// <summary>
         /// High-level helper that accumulates <paramref name="dt"/>, performs as many fixed substeps
@@ -149,8 +146,7 @@ namespace ZenECS.Core.Infrastructure
         /// <param name="alpha">Outputs interpolation factor for rendering (0–1).</param>
         /// <returns>The number of fixed substeps performed.</returns>
         /// <exception cref="InvalidOperationException">Thrown when the kernel has not been started.</exception>
-        public static int Pump(float dt, float fixedDelta, int maxSubSteps, out float alpha)
-            => SnapshotHostOrThrow().Pump(dt, fixedDelta, maxSubSteps, out alpha);
+        public static int Pump(float dt, float fixedDelta, int maxSubSteps, out float alpha) => SnapshotHostOrThrow().Pump(dt, fixedDelta, maxSubSteps, out alpha);
 
         /// <summary>
         /// Shuts down the underlying host and clears the default instance.
@@ -178,7 +174,11 @@ namespace ZenECS.Core.Infrastructure
         /// Gets the global <see cref="MessageBus"/> from the underlying host.
         /// </summary>
         /// <exception cref="InvalidOperationException">Thrown when the kernel has not been started.</exception>
-        public static MessageBus Bus => SnapshotHostOrThrow().Bus;
+        public static IMessageBus Bus => SnapshotHostOrThrow().Bus;
+        
+        public static IBindingRouter BindingRouter => SnapshotHostOrThrow().BindingRouter;
+        public static IContextFactoryHub ContextFactoryHub => SnapshotHostOrThrow().ContextFactoryHub;
+        public static IContextRegistry ContextRegistry => SnapshotHostOrThrow().ContextRegistry;
 
         /// <summary>
         /// Replaces the current default host implementation.

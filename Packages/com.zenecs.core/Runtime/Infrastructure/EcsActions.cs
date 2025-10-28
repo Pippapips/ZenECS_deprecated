@@ -79,7 +79,7 @@ namespace ZenECS.Core.Infrastructure
 
             ref var r = ref w.RefComponentInternal<T>(e);
             r = value;
-            w.ComponentDeltaDispatcher.DispatchAdded(e, value);
+            w.BindingRouter?.DispatchAdded(e, value);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -105,7 +105,7 @@ namespace ZenECS.Core.Infrastructure
 
             ref var r = ref w.RefComponentInternal<T>(e);
             r = value;
-            w.ComponentDeltaDispatcher.DispatchChanged(e, value);
+            w.BindingRouter?.DispatchChanged(e, value);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -119,7 +119,7 @@ namespace ZenECS.Core.Infrastructure
 
             if (w.RemoveComponentInternal<T>(e))
             {
-                w.ComponentDeltaDispatcher.DispatchRemoved<T>(e);
+                w.BindingRouter?.DispatchRemoved<T>(e);
             }
         }
 

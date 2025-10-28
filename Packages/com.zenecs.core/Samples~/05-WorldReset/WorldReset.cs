@@ -107,9 +107,8 @@ namespace ZenEcsCoreSamples.WorldReset
                     new PrintSummarySystem(),   // Presentation (read-only)
                 },
                 options: null,
-                componentDeltaDispatcher: null,
                 systemRunnerLog: Console.WriteLine,
-                configure: (world, bus) => { /* optional setup */ }
+                onComplete: () => { /* optional setup */ }
             );
 
             const float fixedDelta = 1f / 60f;   // 60Hz simulation

@@ -43,5 +43,6 @@ namespace ZenECS.Core.Messaging
         /// </summary>
         /// <returns>The number of processed message batches.</returns>
         int PumpAll();
+        void Clear();
     }
 }

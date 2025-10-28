@@ -170,5 +170,5 @@ namespace ZenECS.Core.Messaging
         /// After clearing, existing subscription tokens become invalid.
         /// </remarks>
         public void Clear() => _topics.Clear();
-    }
+        }
 }

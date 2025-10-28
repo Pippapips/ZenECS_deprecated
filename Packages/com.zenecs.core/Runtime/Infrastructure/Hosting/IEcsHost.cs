@@ -16,7 +16,7 @@ using ZenECS.Core.Messaging;
 using System;
 using System.Collections.Generic;
 using ZenECS.Core.Systems;
-using ZenECS.Core.ViewBinding;
+using ZenECS.Core.Binding;
 
 namespace ZenECS.Core.Infrastructure.Hosting
 {
@@ -36,22 +36,24 @@ namespace ZenECS.Core.Infrastructure.Hosting
     public interface IEcsHost : IDisposable
     {
         World World { get; }
-        MessageBus Bus { get; }
+        IMessageBus Bus { get; }
+        IBindingRouter BindingRouter { get; }
+        IContextFactoryHub ContextFactoryHub { get; }
+        IContextRegistry ContextRegistry { get; }
         bool IsRunning { get; }
 
         void Start(WorldConfig config,
             IEnumerable<ISystem> systems,
             SystemRunnerOptions? options = null,
-            IComponentDeltaDispatcher? componentDeltaDispatcher = null,
             Action<string>? systemRunnerLog = null,
-            Action<World, MessageBus>? configure = null);
+            Action? onComplete = null);
         void Shutdown();
 
         // ---- Runner lifecycle / forwarding ----
         SystemRunnerOptions RunnerOptions { get; }
         void BeginFrame(float dt);
         void FixedStep(float fixedDelta);
-        void LateFrame(float alpha);
+        void LateFrame(float alpha = 1.0f);
         int Pump(float dt, float fixedDelta, int maxSubSteps, out float alpha);
     }
 }

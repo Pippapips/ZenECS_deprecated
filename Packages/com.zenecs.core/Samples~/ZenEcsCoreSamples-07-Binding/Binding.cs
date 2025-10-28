@@ -18,7 +18,7 @@ using ZenECS.Core;
 using ZenECS.Core.Infrastructure;
 using ZenECS.Core.Messaging;
 using ZenECS.Core.Systems;
-using ZenECS.Core.ViewBinding;
+using ZenECS.Core.Binding;
 
 namespace ZenECS.Binding.ConsoleSample
 {
@@ -59,7 +59,7 @@ namespace ZenECS.Binding.ConsoleSample
     /// A simple console binder for Position component.
     /// Prints bind/apply/unbind events to the console.
     /// </summary>
-    public sealed class ConsoleViewBinder : BaseViewBinder,
+    public sealed class ConsoleViewBinder : BaseBinder,
         // IAlwaysApply,
         IBinds<Position>, IBinds<Health>
     {
@@ -70,38 +70,48 @@ namespace ZenECS.Binding.ConsoleSample
         public void OnDelta(in ComponentDelta<Position> delta)
         {
             Console.WriteLine($"Position {delta.Kind}");
-            if (delta.Kind != ComponentDeltaKind.Removed) _p = delta.Value;
-            else
+            if (delta.Kind == ComponentDeltaKind.Removed)
             {
                 _p = new Position(0, 0);
+            }
+            else
+            {
+                _p = delta.Value;                
             }
         }
         
         public void OnDelta(in ComponentDelta<Health> delta)
         {
             Console.WriteLine($"Health {delta.Kind}");
-            if (delta.Kind != ComponentDeltaKind.Removed) _h = delta.Value;
+            if (delta.Kind == ComponentDeltaKind.Removed)
+            {
+                _h = new Health(0, 0);
+            }
+            else
+            {
+                _h = delta.Value;
+            }
         }
 
         public override void Apply()
         {
-            Console.WriteLine($"[Apply]  e={Entity} Position={_p}");
-            Console.WriteLine($"[Apply]  e={Entity} Health={_h}");
+            Console.WriteLine($"[Apply]     e={Entity} Position={_p}");
+            Console.WriteLine($"[Apply]     e={Entity} Health={_h}");
         }
         
         protected override void OnBind(World w, Entity e)
         {
-            Console.WriteLine($"[Bind]   e={e}");
+            Console.WriteLine($"[Bind]      e={e}");
         }
 
         protected override void OnUnbind()
         {
-            Console.WriteLine($"[Unbind] e={Entity}");
+            Console.WriteLine($"[Unbind]    e={Entity}");
         }
 
         protected override void OnDispose()
         {
-            Console.WriteLine($"[Disposed] e={Entity}");
+            Console.WriteLine($"[Disposed]  e={Entity}");
         }
     }
 
@@ -121,17 +131,19 @@ namespace ZenECS.Binding.ConsoleSample
                 new WorldConfig(initialEntityCapacity: 256),
                 null,
                 null, 
-                null,
                 Console.WriteLine,
-                (world, bus) =>
+                false,
+                () =>
                 {
                     var ecsLogger = new EcsLogger();
                     EcsRuntimeOptions.Log = ecsLogger;
 
+                    var world = EcsKernel.World;
+                    
                     // Create entity and associate with a console view
                     var e = world.CreateEntity();
                     var view = new ConsoleViewBinder();
-                    world.ComponentDeltaDispatcher.Attach(e, view);
+                    world.BindingRouter?.Attach(e, view);
 
                     // Add and modify Position component
                     world.Add(e, new Position(1, 1));

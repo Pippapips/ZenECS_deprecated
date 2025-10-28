@@ -8,7 +8,7 @@ using float3 = Unity.Mathematics.float3;
 
 namespace ZenECS.Adapter.Unity.Components.Common
 {
-    [ZenComponent(StableId = "com.zenecs.position.v2")]
+    [ZenComponent(StableId = "com.zenecs.position.v1")]
     public readonly struct Position : IEquatable<Position>
     {
         public static readonly Position Default = new Position(float3.zero, 10);
@@ -41,27 +41,8 @@ namespace ZenECS.Adapter.Unity.Components.Common
         public override int GetHashCode() => (int)hash(Value);
     }
 
-    [ZenFormatterFor(typeof(Position), "com.zenecs.position.v1")]
+    [ZenFormatterFor(typeof(Position), "com.zenecs.position.v1", isLatest: true)]
     public sealed class PositionFormatter : BinaryComponentFormatter<Position>
-    {
-        public override void Write(in Position value, ISnapshotBackend backend)
-        {
-            backend.WriteFloat(value.Value.x);
-            backend.WriteFloat(value.Value.y);
-            backend.WriteFloat(value.Value.z);
-        }
-
-        public override Position ReadTyped(ISnapshotBackend backend)
-        {
-            float x = backend.ReadFloat();
-            float y = backend.ReadFloat();
-            float z = backend.ReadFloat();
-            return new Position(new float3(x, y, z));
-        }
-    }
-    
-    [ZenFormatterFor(typeof(Position), "com.zenecs.position.v2", isLatest: true)]
-    public sealed class PositionFormatterV2 : BinaryComponentFormatter<Position>
     {
         public override void Write(in Position value, ISnapshotBackend backend)
         {

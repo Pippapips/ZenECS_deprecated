@@ -1,4 +1,4 @@
-﻿﻿// ──────────────────────────────────────────────────────────────────────────────
+﻿// ──────────────────────────────────────────────────────────────────────────────
 // ZenECS Core
 // File: EcsRuntimeOptions.cs
 // Purpose: Tunables for runtime diagnostics, logging, and write-permission policy.

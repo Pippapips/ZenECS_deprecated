@@ -130,9 +130,8 @@ namespace ZenEcsCoreSamples.CommandBuffer
                     new PrintStatusSystem(),       // Presentation (read-only)
                 },
                 options: null,
-                componentDeltaDispatcher: null,
                 systemRunnerLog: Console.WriteLine,
-                configure: (world, bus) =>
+                onComplete: () =>
                 {
                     // (Optional) additional setup goes here
                 }

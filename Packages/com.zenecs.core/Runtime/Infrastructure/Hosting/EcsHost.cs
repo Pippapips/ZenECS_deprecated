@@ -20,7 +20,7 @@ using ZenECS.Core.Systems;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using ZenECS.Core.Infrastructure;
-using ZenECS.Core.ViewBinding;
+using ZenECS.Core.Binding;
 
 namespace ZenECS.Core.Infrastructure.Hosting
 {
@@ -44,7 +44,10 @@ namespace ZenECS.Core.Infrastructure.Hosting
         private readonly object _gate = new();
 
         private World? _world;
-        private MessageBus? _bus;
+        private IMessageBus? _bus;
+        private IBindingRouter? _bindingRouter;
+        private IContextFactoryHub? _contextFactoryHub;
+        private IContextRegistry? _contextRegistry;
         private SystemRunner? _runner;
         private float _accumulator;
 
@@ -58,7 +61,10 @@ namespace ZenECS.Core.Infrastructure.Hosting
         /// Gets the global <see cref="MessageBus"/> instance owned by this host.
         /// </summary>
         /// <exception cref="InvalidOperationException">Thrown when the host has not been started.</exception>
-        public MessageBus Bus => _bus ?? throw new InvalidOperationException("ECS host not started.");
+        public IMessageBus Bus => _bus ?? throw new InvalidOperationException("ECS host not started.");
+        public IBindingRouter BindingRouter => _bindingRouter ?? throw new InvalidOperationException("ECS host not started.");
+        public IContextFactoryHub ContextFactoryHub => _contextFactoryHub ?? throw new InvalidOperationException("ECS host not started.");
+        public IContextRegistry ContextRegistry => _contextRegistry ?? throw new InvalidOperationException("ECS host not started.");
 
         /// <summary>
         /// Indicates whether the ECS host is currently running.
@@ -84,18 +90,21 @@ namespace ZenECS.Core.Infrastructure.Hosting
             WorldConfig config,
             IEnumerable<ISystem> systems,
             SystemRunnerOptions? options = null,
-            IComponentDeltaDispatcher? componentDeltaDispatcher = null,
             Action<string>? systemRunnerLog = null,
-            Action<World, MessageBus>? configure = null)
+            Action? onComplete = null)
         {
             lock (_gate)
             {
                 if (IsRunning) return;
-                _world = new World(config, componentDeltaDispatcher);
+                _world = new World(config);
                 _bus = new MessageBus();
+                _contextFactoryHub = new ContextFactoryHub();
+                _contextRegistry = new ContextRegistry();
+                _bindingRouter = new BindingRouter(_world, _contextRegistry, _contextFactoryHub);
+                _world.SetRouter(_bindingRouter);
                 IsRunning = true;
                 initializeSystems(systems, options, systemRunnerLog);
-                configure?.Invoke(_world, _bus);
+                onComplete?.Invoke();
             }
         }
 
@@ -156,7 +165,7 @@ namespace ZenECS.Core.Infrastructure.Hosting
         /// Interpolation ratio between the last and next fixed updates (0–1).
         /// </param>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public void LateFrame(float alpha)
+        public void LateFrame(float alpha = 1.0f)
         {
             if (_runner is null) throw new InvalidOperationException("Runner not initialized.");
             _runner.LateFrame(alpha);

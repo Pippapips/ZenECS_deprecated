@@ -178,9 +178,8 @@ namespace ZenEcsCoreSamples.Snapshot
                     new PrintSummarySystem(),  // Presentation system (read-only)
                 },
                 options: null,
-                componentDeltaDispatcher: null,
                 systemRunnerLog: Console.WriteLine,
-                configure: (world, bus) => { }
+                onComplete: () => { }
             );
 
             const float fixedDelta = 1f / 60f;

@@ -10,13 +10,11 @@ namespace ZenECS.Codegen.Registry
     private static void Register()
     {
       // Latest-for-write
-      ComponentRegistry.RegisterFormatter(new ZenECS.Adapter.Unity.Components.Common.PositionFormatterV2());
+      ComponentRegistry.RegisterFormatter(new ZenECS.Adapter.Unity.Components.Common.PositionFormatter());
       // Latest-for-write
       ComponentRegistry.RegisterFormatter(new ZenECS.Adapter.Unity.Components.Common.RotationFormatterV1());
       // Latest-for-write
       ComponentRegistry.RegisterFormatter(new ZenECS.Adapter.Unity.Components.Common.ScaleFormatterV1());
-      // Legacy-readonly (StableId='com.zenecs.position.v1')
-      ComponentRegistry.RegisterFormatter(new ZenECS.Adapter.Unity.Components.Common.PositionFormatter());
     }
   }
 }

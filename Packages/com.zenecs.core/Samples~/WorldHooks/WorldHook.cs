@@ -120,9 +120,9 @@ namespace ZenEcsCoreSamples.WorldHooks
                     new PrintSummarySystem(),   // Presentation (read-only)
                 },
                 options: null,
-                componentDeltaDispatcher: null,
                 systemRunnerLog: Console.WriteLine,
-                configure: (world, bus) => { }
+                throwIfRunning: false,
+                onComplete: () => { }
             );
 
             const float fixedDelta = 1f / 60f;

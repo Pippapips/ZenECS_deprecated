@@ -101,13 +101,14 @@ namespace ZenEcsCoreSamples.Basic
                     new PrintPositionsSystem() // Presentation (read-only)
                 },
                 options: null,
-                componentDeltaDispatcher: null,
                 systemRunnerLog: Console.WriteLine,
-                configure: (world, bus) =>
+                onComplete: () =>
                 {
                     var ecsLogger = new EcsLogger();
                     EcsRuntimeOptions.Log = ecsLogger;
 
+                    var world = EcsKernel.World;
+                    
                     // Create sample entities with Position and Velocity
                     var e1 = world.CreateEntity();
                     world.Add(e1, new Position(0, 0));
