@@ -1,143 +1,157 @@
 ﻿#nullable enable
 using System;
 using System.Collections.Generic;
+using System.Linq;
+using ZenECS.Core;
 
 namespace ZenECS.Core.Binding
 {
-    public sealed class BindingRouter : IBindingRouter
+    /// <summary>Manages binders per entity, dispatches deltas, calls Apply() once per frame.</summary>
+    public sealed class BindingRouter : IBindingRouter 
     {
         private readonly World _world;
-        private readonly ITypeDispatcher _type;
-        private readonly IContextEnsurer _ensure;
+        private readonly IContextRegistry _ctx;
+        private readonly Dictionary<int, List<IBinder>> _byEntity = new(1024);
+        private int _attachSeq = 0;
 
-        private readonly Dictionary<Entity, BinderSet> _sets = new();
-        private readonly Dictionary<Type, List<IBinder>> _subscribers = new();
-        private readonly Dictionary<(Entity, Type), (byte kind, object val)> _delta = new();
-
-        // 이번 프레임 델타를 받은 바인더
-        private readonly HashSet<IBinder> _touched = new();
-
-        // 바인더가 스스로 예약한 Apply
-        private readonly HashSet<IBinder> _scheduled = new();
-        
-        public BindingRouter(World w, IContextRegistry reg, IContextFactoryHub hub)
+        public BindingRouter(World world, IContextRegistry registry)
         {
-            _world = w ?? throw new ArgumentNullException(nameof(w));
-            _type = new ReflectionCachedTypeDispatcher();
-            _ensure = new ContextEnsurer(reg, hub);
+            _world = world ?? throw new ArgumentNullException(nameof(world));
+            _ctx   = registry ?? throw new ArgumentNullException(nameof(registry));
         }
 
-        public void Attach(Entity e, IBinder b)
+        public void Attach(Entity e, IBinder binder, AttachOptions options = AttachOptions.Strict)
         {
-            _ensure.EnsureForBinder(_world, e, b);
-            b.Bind(_world, e);
-            if (!_sets.TryGetValue(e, out var set)) _sets[e] = set = new BinderSet();
-            set.Attach(b);
-            IndexBinderSubscriptions(b);
-
-            _scheduled.Add(b); // Bind 직후 1회 Apply            
+            if (binder == null) throw new ArgumentNullException(nameof(binder));
+            ValidateRequiredContexts(binder, e, options);
+            binder.Bind(_world, e);
+            if (!_byEntity.TryGetValue(e.Id, out var list))
+                _byEntity[e.Id] = list = new List<IBinder>(4);
+            InsertOrdered(list, binder);
         }
 
-        public void Detach(Entity e, IBinder b)
+        public void Detach(Entity e, IBinder binder)
         {
-            if (_sets.TryGetValue(e, out var set) && set.Detach(b))
-                b.Unbind();
-            DeindexBinderSubscriptions(b);
+            if (_byEntity.TryGetValue(e.Id, out var list) && list.Remove(binder))
+                binder.Unbind();
         }
-        
-        /* -------- Subscription Indexing -------- */
 
-        private void IndexBinderSubscriptions(IBinder binder)
+        public void DetachAll(Entity e)
         {
-            foreach (var itf in binder.GetType().GetInterfaces())
+            if (_byEntity.TryGetValue(e.Id, out var list))
             {
-                if (!itf.IsGenericType) continue;
-                if (itf.GetGenericTypeDefinition() != typeof(IBinds<>)) continue;
-                var t = itf.GetGenericArguments()[0];
-                if (!_subscribers.TryGetValue(t, out var list)) _subscribers[t] = list = new();
-                list.Add(binder);
+                foreach (var b in list) b.Unbind();
+                list.Clear();
+                _byEntity.Remove(e.Id);
             }
         }
 
-        private void DeindexBinderSubscriptions(IBinder binder)
+        public void OnEntityDestroyed(Entity e)
         {
-            foreach (var itf in binder.GetType().GetInterfaces())
-            {
-                if (!itf.IsGenericType) continue;
-                if (itf.GetGenericTypeDefinition() != typeof(IBinds<>)) continue;
-                var t = itf.GetGenericArguments()[0];
-                if (_subscribers.TryGetValue(t, out var list))
-                    list.Remove(binder);
-            }
-        }
-        
-        /* 델타 분배 중: 해당 바인더를 'touched'에 마킹 */
-        private void DispatchToBinders(Type t, Entity e, byte kind, object boxed, BinderSet set)
-        {
-            var span = set.EnumerateSorted();
-            for (int i = 0; i < span.Length; i++)
-            {
-                var b = span[i];
-                _type.DispatchDelta(t, b, e, kind, boxed);
-                // DispatchDelta 내부에서 타입 미스면 바로 리턴, 히트했다면 touched
-                // 간단화를 위해: 히트 여부를 반환받거나, 아래처럼 한 번 더 체크
-                if (ImplementsBinds(b, t)) _touched.Add(b);
-            }
-        }
-        
-        private static bool ImplementsBinds(IBinder b, Type t)
-        {
-            foreach (var itf in b.GetType().GetInterfaces())
-                if (itf.IsGenericType && itf.GetGenericTypeDefinition()==typeof(IBinds<>) && itf.GetGenericArguments()[0]==t)
-                    return true;
-            return false;
-        }
-        
-        // --- 코어에서 들어오는 델타 ---
-        public void DispatchAdded<T>(Entity e, in T v) where T : struct => _delta[(e, typeof(T))] = ((byte)ComponentDeltaKind.Added, v);
-        public void DispatchChanged<T>(Entity e, in T v) where T : struct => _delta[(e, typeof(T))] = ((byte)ComponentDeltaKind.Changed, v);
-        public void DispatchRemoved<T>(Entity e) where T : struct => _delta[(e, typeof(T))] = ((byte)ComponentDeltaKind.Removed, null)!;
-        public void DispatchEntityDestroyed(Entity e)
-        {
-            if (_sets.Remove(e, out var set))
-            {
-                var span = set.EnumerateSorted();
-                for (int i = 0; i < span.Length; i++) span[i].Unbind();
-            }
-            // 해당 엔티티의 델타 제거
-            var toRemove = new List<(Entity, Type)>();
-            foreach (var k in _delta.Keys) if (k.Item1.Equals(e)) toRemove.Add(k);
-            foreach (var k in toRemove) _delta.Remove(k);
+            DetachAll(e);
+            _ctx.Clear(_world, e);
         }
 
-        // --- 프레임 말 ---
-        public void RunApply()
+        public void ApplyAll()
         {
-            // 1) 델타 분배
-            foreach (var kv in _delta)
-            {
-                var (e, t) = kv.Key;
-                if (!_sets.TryGetValue(e, out var set)) continue;
-                var (kind, boxed) = kv.Value;
-                DispatchToBinders(t, e, kind, boxed, set);
-            }
-            _delta.Clear();
+            foreach (var list in _byEntity.Values)
+                for (int i = 0; i < list.Count; i++)
+                    list[i].Apply();
+        }
 
-            // 2) Apply 대상 집합 만들기: touched ∪ scheduled ∪ AlwaysApply
-            foreach (var set in _sets.Values)
+        public void Dispatch<T>(in ComponentDelta<T> d) where T : struct
+        {
+            if (!_byEntity.TryGetValue(d.Entity.Id, out var list)) return;
+            int n = list.Count;
+            for (int i = 0; i < n; i++)
             {
-                var span = set.EnumerateSorted();
-                for (int i = 0; i < span.Length; i++)
+                if (i >= list.Count) break;
+                if (list[i] is IBinds<T> b) b.OnDelta(in d);
+            }
+        }
+
+        private void InsertOrdered(List<IBinder> list, IBinder binder)
+        {
+            int attachOrder = ++_attachSeq;
+            if (binder is IAttachOrderMarker m) m.AttachOrder = attachOrder;
+
+            int idx = list.FindIndex(x =>
+            {
+                int byPriority = x.Priority.CompareTo(binder.Priority);
+                if (byPriority != 0) return byPriority > 0;
+                int a1 = (x is IAttachOrderMarker mm) ? mm.AttachOrder : int.MaxValue;
+                return a1 > attachOrder;
+            });
+
+            if (idx < 0) list.Add(binder); else list.Insert(idx, binder);
+        }
+
+        private void ValidateRequiredContexts(IBinder binder, Entity e, AttachOptions options)
+        {
+            var need = binder.GetType().GetInterfaces()
+                             .Where(t => t.IsGenericType && t.GetGenericTypeDefinition() == typeof(IRequireContext<>))
+                             .Select(t => t.GetGenericArguments()[0])
+                             .Distinct().ToArray();
+
+            foreach (var tCtx in need)
+            {
+                var has = HasContextDynamic(tCtx, e);
+                if (!has)
                 {
-                    var b = span[i];
-                    if (b is IAlwaysApply || _touched.Contains(b) || _scheduled.Contains(b))
-                        b.Apply();
+                    var msg = $"[BindingRouter] Missing required context {tCtx.Name} for binder {binder.GetType().Name} on {e}.";
+                    if (options == AttachOptions.Strict)
+                    {
+                        throw new InvalidOperationException(msg);
+                    }
+                    else
+                    {
+                        // just warning
+                    }
                 }
             }
+        }
 
-            // 3) 클린업 & 다음 프레임 예약 이월
-            _touched.Clear();
-            _scheduled.Clear();
+        private bool HasContextDynamic(Type ctxType, Entity e)
+        {
+            var mHas = _ctx.GetType().GetMethods()
+                .FirstOrDefault(mi => mi.IsGenericMethodDefinition && mi.Name == "Has"
+                                      && mi.GetParameters().Length == 2
+                                      && mi.GetParameters()[0].ParameterType == typeof(World)
+                                      && mi.GetParameters()[1].ParameterType == typeof(Entity));
+            if (mHas != null)
+                return (bool)mHas.MakeGenericMethod(ctxType).Invoke(_ctx, new object[] { _world, e });
+
+            mHas = _ctx.GetType().GetMethods()
+                .FirstOrDefault(mi => mi.IsGenericMethodDefinition && mi.Name == "Has"
+                                      && mi.GetParameters().Length == 1
+                                      && mi.GetParameters()[0].ParameterType == typeof(Entity));
+            if (mHas != null)
+                return (bool)mHas.MakeGenericMethod(ctxType).Invoke(_ctx, new object[] { e });
+
+            var mTry = _ctx.GetType().GetMethods()
+                .FirstOrDefault(mi => mi.IsGenericMethodDefinition && mi.Name == "TryGet"
+                                      && mi.GetParameters().Length == 3
+                                      && mi.GetParameters()[0].ParameterType == typeof(World)
+                                      && mi.GetParameters()[1].ParameterType == typeof(Entity)
+                                      && mi.GetParameters()[2].IsOut);
+            if (mTry != null)
+            {
+                var args = new object[] { _world, e, null! };
+                return (bool)mTry.MakeGenericMethod(ctxType).Invoke(_ctx, args);
+            }
+
+            mTry = _ctx.GetType().GetMethods()
+                .FirstOrDefault(mi => mi.IsGenericMethodDefinition && mi.Name == "TryGet"
+                                      && mi.GetParameters().Length == 2
+                                      && mi.GetParameters()[0].ParameterType == typeof(Entity)
+                                      && mi.GetParameters()[1].IsOut);
+            if (mTry != null)
+            {
+                var args = new object[] { e, null! };
+                return (bool)mTry.MakeGenericMethod(ctxType).Invoke(_ctx, args);
+            }
+
+            return false;
         }
     }
 }

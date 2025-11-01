@@ -55,6 +55,7 @@ namespace ZenECS.Core
         private int[] _generation; // 세대(Generation) 배열: slot별 현재 세대 카운터 → Generation array: per-slot current generation
 
         public IBindingRouter? BindingRouter { get; private set; }
+        public IContextRegistry? ContextRegistry { get; private set; }
 
         /// <summary>
         /// Constructs a World with the given configuration (or defaults).
@@ -75,6 +76,11 @@ namespace ZenECS.Core
         internal void SetRouter(IBindingRouter router)
         {
             BindingRouter = router;
+        }
+        
+        internal void SetContextRegistry(IContextRegistry registry)
+        {
+            ContextRegistry = registry;
         }
     }
 }

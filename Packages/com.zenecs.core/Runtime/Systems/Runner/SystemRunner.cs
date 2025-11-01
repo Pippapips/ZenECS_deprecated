@@ -150,7 +150,7 @@ namespace ZenECS.Core.Systems
         /// </summary>
         public void LateFrame(float interpolationAlpha = 1f)
         {
-            _w.BindingRouter?.RunApply();
+            _w.BindingRouter?.ApplyAll();
             
             using IDisposable? guard = Options.GuardWritesInPresentation ? DenyWrites(_w) : null;
             RunLateGroup(SystemGroup.Presentation);

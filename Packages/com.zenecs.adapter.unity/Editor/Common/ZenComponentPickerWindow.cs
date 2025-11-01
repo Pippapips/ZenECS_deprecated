@@ -5,6 +5,7 @@ using System.Linq;
 using System.Reflection;
 using UnityEditor;
 using UnityEngine;
+using ZenECS.Adapter.Unity.Attributes;
 
 namespace ZenECS.EditorCommon
 {
@@ -273,7 +274,7 @@ namespace ZenECS.EditorCommon
                 {
                     if (t == null || t.IsAbstract || t.IsGenericType) continue;
                     if (!t.IsClass && !t.IsValueType) continue;
-                    if (t.GetCustomAttribute<ZenECS.Core.ZenComponentAttribute>() == null) continue;
+                    if (t.GetCustomAttribute<ZenComponentAttribute>() == null) continue;
                     yield return t;
                 }
             }

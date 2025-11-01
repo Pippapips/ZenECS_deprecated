@@ -62,7 +62,7 @@ namespace ZenECS.EditorCommon
             return y - area.y;
         }
 
-        static bool TryDrawBuiltin(Rect r, string label, Type ft, object cur, out object nv)
+        public static bool TryDrawBuiltin(Rect r, string label, Type ft, object cur, out object nv)
         {
             nv = cur;
 

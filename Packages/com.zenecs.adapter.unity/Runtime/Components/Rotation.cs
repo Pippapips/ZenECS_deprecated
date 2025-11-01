@@ -1,5 +1,6 @@
 ﻿using System;
 using Unity.Mathematics;
+using ZenECS.Adapter.Unity.Attributes;
 using static Unity.Mathematics.math;
 using ZenECS.Core;
 using ZenECS.Core.Serialization;

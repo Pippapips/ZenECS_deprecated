@@ -981,7 +981,7 @@ namespace ZenECS.EditorTools
             foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
             {
                 if (asm.IsDynamic) continue;
-                var t = asm.GetType("ZenECS.Core.ZenComponentAttribute", false);
+                var t = asm.GetType("ZenECS.Adapter.Unity.Attributes.ZenComponentAttribute", false);
                 if (t != null && typeof(Attribute).IsAssignableFrom(t)) return t;
             }
             return null;

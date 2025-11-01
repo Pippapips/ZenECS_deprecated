@@ -21,7 +21,7 @@ namespace ZenECS.Core.Binding
     {
         protected World? World { get; private set; }
         public Entity Entity { get; private set; }
-        public virtual int Priority => 0;
+        public virtual int Priority { get; set; }
         int IAttachOrderMarker.AttachOrder { get; set; }
         private bool _bound, _disposed;
 

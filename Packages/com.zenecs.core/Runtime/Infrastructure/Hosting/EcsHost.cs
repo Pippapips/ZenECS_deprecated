@@ -46,7 +46,6 @@ namespace ZenECS.Core.Infrastructure.Hosting
         private World? _world;
         private IMessageBus? _bus;
         private IBindingRouter? _bindingRouter;
-        private IContextFactoryHub? _contextFactoryHub;
         private IContextRegistry? _contextRegistry;
         private SystemRunner? _runner;
         private float _accumulator;
@@ -63,7 +62,6 @@ namespace ZenECS.Core.Infrastructure.Hosting
         /// <exception cref="InvalidOperationException">Thrown when the host has not been started.</exception>
         public IMessageBus Bus => _bus ?? throw new InvalidOperationException("ECS host not started.");
         public IBindingRouter BindingRouter => _bindingRouter ?? throw new InvalidOperationException("ECS host not started.");
-        public IContextFactoryHub ContextFactoryHub => _contextFactoryHub ?? throw new InvalidOperationException("ECS host not started.");
         public IContextRegistry ContextRegistry => _contextRegistry ?? throw new InvalidOperationException("ECS host not started.");
 
         /// <summary>
@@ -98,10 +96,10 @@ namespace ZenECS.Core.Infrastructure.Hosting
                 if (IsRunning) return;
                 _world = new World(config);
                 _bus = new MessageBus();
-                _contextFactoryHub = new ContextFactoryHub();
                 _contextRegistry = new ContextRegistry();
-                _bindingRouter = new BindingRouter(_world, _contextRegistry, _contextFactoryHub);
+                _bindingRouter = new BindingRouter(_world, _contextRegistry);
                 _world.SetRouter(_bindingRouter);
+                _world.SetContextRegistry(_contextRegistry);
                 IsRunning = true;
                 initializeSystems(systems, options, systemRunnerLog);
                 onComplete?.Invoke();
@@ -224,6 +222,7 @@ namespace ZenECS.Core.Infrastructure.Hosting
 
                 shutdownSystems();
 
+                _contextRegistry?.ClearAll();
                 _bus?.Clear();
                 EntityEvents.Reset();
                 _world?.Reset(false);

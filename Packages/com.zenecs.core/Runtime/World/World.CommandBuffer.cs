@@ -12,6 +12,7 @@
 // ─────────────────────────────────────────────────────────────────────────────-
 #nullable enable
 using System.Collections.Concurrent;
+using ZenECS.Core.Binding;
 
 namespace ZenECS.Core
 {
@@ -176,7 +177,7 @@ namespace ZenECS.Core
                         return;
                     }
                     w.AddComponentInternal(e, in v);
-                    w.BindingRouter?.DispatchAdded(e, v);
+                    w.BindingRouter?.Dispatch(new ComponentDelta<T>(e, ComponentDeltaKind.Added, v));
                 }
             }
 
@@ -198,7 +199,7 @@ namespace ZenECS.Core
                     }
                     // Route through World.Replace to align with hooks/validation/events.
                     w.Replace(e, in v);
-                    w.BindingRouter?.DispatchChanged(e, v);
+                    w.BindingRouter?.Dispatch(new ComponentDelta<T>(e, ComponentDeltaKind.Changed, v));
                 }
             }
 
@@ -215,7 +216,7 @@ namespace ZenECS.Core
                     }
                     if (w.RemoveComponentInternal<T>(e))
                     {
-                        w.BindingRouter?.DispatchRemoved<T>(e);
+                        w.BindingRouter?.Dispatch(new ComponentDelta<T>(e, ComponentDeltaKind.Removed));
                     }
                 }
             }

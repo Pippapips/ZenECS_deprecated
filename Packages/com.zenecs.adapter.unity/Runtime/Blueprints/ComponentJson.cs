@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Reflection;
 using Unity.Collections;                  // ★ FixedString64Bytes
 using UnityEngine;
+using ZenECS.Adapter.Unity.Attributes;
 using ZenECS.Core;                        // ★ ZenDefaults.CreateWithDefaults
 
 namespace ZenECS.Adapter.Unity.Blueprints
@@ -34,6 +35,7 @@ namespace ZenECS.Adapter.Unity.Blueprints
             public UInt2 u2m; public UInt3 u3m; public UInt4 u4m;
             public Bool2 b2m; public Bool3 b3m; public Bool4 b4m;
             public Float4 q4m; // quaternion as float4
+            public GameObject go;
         }
 
         [Serializable] public struct Float2 { public float x,y; }
@@ -80,6 +82,7 @@ namespace ZenECS.Adapter.Unity.Blueprints
                 else if (ft == typeof(Vector4)) { rec.kind = "vec4"; rec.v4 = val is Vector4 v4 ? v4 : default; }
                 else if (ft == typeof(Quaternion)) { rec.kind = "quat"; rec.q = val is Quaternion q ? q : Quaternion.identity; }
                 else if (ft == typeof(Color)) { rec.kind = "color"; rec.color = val is Color c ? c : Color.white; }
+                else if (ft == typeof(GameObject)) { rec.kind = "go"; rec.go = val is GameObject go ? go : null; }
                 else if (IsMath(ft, "Unity.Mathematics.float2")) { rec.kind = "f2m"; rec.f2m = ToF2(val, ft); }
                 else if (IsMath(ft, "Unity.Mathematics.float3")) { rec.kind = "f3m"; rec.f3m = ToF3(val, ft); }
                 else if (IsMath(ft, "Unity.Mathematics.float4")) { rec.kind = "f4m"; rec.f4m = ToF4(val, ft); }
@@ -140,6 +143,7 @@ namespace ZenECS.Adapter.Unity.Blueprints
                         case "vec4": if (ft == typeof(Vector4)) f.SetValue(inst, rec.v4); break;
                         case "quat": if (ft == typeof(Quaternion)) f.SetValue(inst, rec.q); break;
                         case "color": if (ft == typeof(Color)) f.SetValue(inst, rec.color); break;
+                        case "go": if (ft == typeof(GameObject)) f.SetValue(inst, rec.go); break;
 
                         case "f2m": if (IsMath(ft, "Unity.Mathematics.float2")) f.SetValue(inst, FromF2(ft, rec.f2m)); break;
                         case "f3m": if (IsMath(ft, "Unity.Mathematics.float3")) f.SetValue(inst, FromF3(ft, rec.f3m)); break;

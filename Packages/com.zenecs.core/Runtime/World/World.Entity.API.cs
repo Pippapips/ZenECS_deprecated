@@ -76,8 +76,9 @@ namespace ZenECS.Core
             if (!IsAlive(e)) return;
 
             EntityEvents.RaiseDestroyRequested(this, e);
-            BindingRouter?.DispatchEntityDestroyed(e);
-
+            BindingRouter?.OnEntityDestroyed(e);
+            ContextRegistry?.Clear(this, e);
+            
             foreach (var kv in _pools)
                 kv.Value.Remove(e.Id);
 

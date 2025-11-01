@@ -177,7 +177,6 @@ namespace ZenECS.Core.Infrastructure
         public static IMessageBus Bus => SnapshotHostOrThrow().Bus;
         
         public static IBindingRouter BindingRouter => SnapshotHostOrThrow().BindingRouter;
-        public static IContextFactoryHub ContextFactoryHub => SnapshotHostOrThrow().ContextFactoryHub;
         public static IContextRegistry ContextRegistry => SnapshotHostOrThrow().ContextRegistry;
 
         /// <summary>

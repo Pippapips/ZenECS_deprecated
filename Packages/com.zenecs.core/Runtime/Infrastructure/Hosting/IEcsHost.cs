@@ -38,7 +38,6 @@ namespace ZenECS.Core.Infrastructure.Hosting
         World World { get; }
         IMessageBus Bus { get; }
         IBindingRouter BindingRouter { get; }
-        IContextFactoryHub ContextFactoryHub { get; }
         IContextRegistry ContextRegistry { get; }
         bool IsRunning { get; }
 

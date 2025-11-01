@@ -19,11 +19,6 @@ namespace ZenECS.Adapter.Unity.Migrations
             foreach (var e in world.Query<Position>())
             {
                 var p = world.Read<Position>(e);
-                // 예시 규칙: 값이 (0,0,0)이 아니면서 IntValue==0이면 기본 10으로
-                if (!p.Value.Equals(float3.zero) && p.IntValue == 0)
-                {
-                    world.Replace(e, new Position(p.Value, intValue: 10));
-                }
             }
         }
     }
